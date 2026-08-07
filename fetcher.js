@@ -151,7 +151,7 @@ async function clickMoreLoop(page, stopCondition = null) {
 async function scanMode(page) {
     console.log('--- SCAN MODE ---');
     console.log('Navigating to trips page...');
-    await page.goto('https://riders.uber.com/trips', { waitUntil: 'networkidle' });
+    await page.goto('https://riders.uber.com/trips', { waitUntil: 'domcontentloaded', timeout: 60000 });
 
     await clickMoreLoop(page);
 
@@ -180,9 +180,11 @@ async function scanMode(page) {
 }
 
 async function downloadMode(page, startDate, endDate) {
-    console.log(`--- DOWNLOAD MODE (${startDateStr} to ${endDateStr}) ---`);
+    const sDate = startDate.toISOString().split('T')[0];
+    const eDate = endDate.toISOString().split('T')[0];
+    console.log(`--- DOWNLOAD MODE (${sDate} to ${eDate}) ---`);
     console.log('Collecting trips...');
-    await page.goto('https://riders.uber.com/trips', { waitUntil: 'networkidle' });
+    await page.goto('https://riders.uber.com/trips', { waitUntil: 'domcontentloaded', timeout: 60000 });
 
     // Stop clicking "More" when the last trip in the list is older than the start date
     await clickMoreLoop(page, (lastTrip) => {
@@ -206,7 +208,7 @@ async function downloadMode(page, startDate, endDate) {
         const url = `https://riders.uber.com/trips/${trip.tripId}`;
         console.log(`Processing trip: ${url}`);
         
-        await page.goto(url, { waitUntil: 'networkidle' });
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
         
         try {
             // Find download button
