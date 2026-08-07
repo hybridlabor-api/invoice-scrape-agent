@@ -50,6 +50,7 @@ async function parseInvoice(filePath) {
         datei: path.basename(filePath),
         rechnungsnummer,
         rechnungsdatum,
+        steuerdatum,
         netto: parseFloat(netto) || 0,
         ust: parseFloat(ust) || 0,
         brutto: parseFloat(brutto) || 0,
@@ -84,10 +85,10 @@ async function run() {
         }
     }
 
-    // Sort by date
+    // Sort by steuerdatum
     invoices.sort((a, b) => {
-        const da = a.rechnungsdatum.split('.').reverse().join('-');
-        const db = b.rechnungsdatum.split('.').reverse().join('-');
+        const da = (a.steuerdatum || a.rechnungsdatum).split('.').reverse().join('-');
+        const db = (b.steuerdatum || b.rechnungsdatum).split('.').reverse().join('-');
         return da.localeCompare(db);
     });
 
@@ -120,14 +121,15 @@ async function run() {
     // Table
     const cols = [
         { label: 'Nr.', width: 25 },
-        { label: 'Datum', width: 65 },
-        { label: 'Rechnungsnummer', width: 180 },
-        { label: 'Netto (€)', width: 65 },
-        { label: 'USt (€)', width: 55 },
-        { label: 'Brutto (€)', width: 65 },
+        { label: 'Steuerdatum', width: 65 },
+        { label: 'Rg.Datum', width: 60 },
+        { label: 'Rechnungsnummer', width: 140 },
+        { label: 'Netto (€)', width: 60 },
+        { label: 'USt (€)', width: 50 },
+        { label: 'Brutto (€)', width: 60 },
         { label: 'USt%', width: 35 },
-        { label: 'Distanz', width: 55 },
-        { label: 'Anbieter', width: 200 }
+        { label: 'Distanz', width: 50 },
+        { label: 'Anbieter', width: 177 }
     ];
 
     let x = 30;
@@ -159,7 +161,8 @@ async function run() {
 
         const values = [
             (i + 1).toString(),
-            inv.rechnungsdatum,
+            inv.steuerdatum || '-',
+            inv.rechnungsdatum || '-',
             inv.rechnungsnummer,
             inv.netto.toFixed(2),
             inv.ust.toFixed(2),
@@ -183,13 +186,13 @@ async function run() {
     doc.rect(x, y, cols.reduce((s, c) => s + c.width, 0), rowHeight + 2).fill('#e0e0e0');
     doc.fillColor('#000');
     cx = x;
-    doc.text('GESAMT', cx + 3, y + 5, { width: cols[0].width + cols[1].width + cols[2].width - 6 });
-    cx += cols[0].width + cols[1].width + cols[2].width;
-    doc.text(totalNetto.toFixed(2), cx + 3, y + 5, { width: cols[3].width - 6 });
-    cx += cols[3].width;
-    doc.text(totalUst.toFixed(2), cx + 3, y + 5, { width: cols[4].width - 6 });
+    doc.text('GESAMT', cx + 3, y + 5, { width: cols[0].width + cols[1].width + cols[2].width + cols[3].width - 6 });
+    cx += cols[0].width + cols[1].width + cols[2].width + cols[3].width;
+    doc.text(totalNetto.toFixed(2), cx + 3, y + 5, { width: cols[4].width - 6 });
     cx += cols[4].width;
-    doc.text(totalBrutto.toFixed(2), cx + 3, y + 5, { width: cols[5].width - 6 });
+    doc.text(totalUst.toFixed(2), cx + 3, y + 5, { width: cols[5].width - 6 });
+    cx += cols[5].width;
+    doc.text(totalBrutto.toFixed(2), cx + 3, y + 5, { width: cols[6].width - 6 });
 
     doc.end();
 

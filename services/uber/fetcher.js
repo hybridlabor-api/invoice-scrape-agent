@@ -218,9 +218,18 @@ async function downloadMode(page, activities, startDate, endDate) {
                 let exactDate = parseSubtitleDate(dateStr);
                 let dateForFile = exactDate ? exactDate.toISOString().split('T')[0] : 'UNKNOWN-DATE';
 
-                const dtMatch = text.match(/([0-9]{1,2})\.([0-9]{1,2})\.([0-9]{4})/);
-                if (dtMatch) {
-                    dateForFile = `${dtMatch[3]}-${dtMatch[2].padStart(2,'0')}-${dtMatch[1].padStart(2,'0')}`;
+                const steuerMatch = text.match(/Steuerdatum[:\s]+(\d{1,2})\.(\d{1,2})\.(\d{4})/i);
+                const rechnungMatch = text.match(/Rechnungsdatum[:\s]+(\d{1,2})\.(\d{1,2})\.(\d{4})/i);
+                
+                if (steuerMatch) {
+                    dateForFile = `${steuerMatch[3]}-${steuerMatch[2].padStart(2,'0')}-${steuerMatch[1].padStart(2,'0')}`;
+                } else if (rechnungMatch) {
+                    dateForFile = `${rechnungMatch[3]}-${rechnungMatch[2].padStart(2,'0')}-${rechnungMatch[1].padStart(2,'0')}`;
+                } else {
+                    const dtMatch = text.match(/([0-9]{1,2})\.([0-9]{1,2})\.([0-9]{4})/);
+                    if (dtMatch) {
+                        dateForFile = `${dtMatch[3]}-${dtMatch[2].padStart(2,'0')}-${dtMatch[1].padStart(2,'0')}`;
+                    }
                 }
 
                 const newFilename = `Uber-Bv-${dateForFile}-${invoiceNum}.pdf`;

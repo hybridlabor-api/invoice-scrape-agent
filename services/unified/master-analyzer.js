@@ -32,9 +32,9 @@ class MasterAnalyzer {
                 records.push({
                   service: item.service || entry.name,
                   serviceDisplayName: item.serviceDisplayName || entry.name.toUpperCase(),
-                  orderId: item.orderId || item.id || '',
                   invoiceNumber: item.invoiceNumber || item.rechnungsnummer || item.orderId || '',
-                  date: item.date || item.rechnungsdatum || '',
+                  date: item.steuerdatum || item.date || item.rechnungsdatum || '',
+                  invoiceDate: item.rechnungsdatum || item.date || '',
                   netto: parseFloat(item.netto) || 0,
                   ust: parseFloat(item.ust) || 0,
                   brutto: parseFloat(item.brutto) || 0,
@@ -102,10 +102,11 @@ class MasterAnalyzer {
    * Export Master CSV
    */
   exportCsv(records) {
-    const headers = ['Service', 'Datum', 'Rechnungsnummer / Bestellnummer', 'Händler / Anbieter', 'Netto (EUR)', 'USt (EUR)', 'Brutto (EUR)', 'Steuersatz', 'PDF-Datei'];
+    const headers = ['Service', 'Steuerdatum', 'Rechnungsdatum', 'Rechnungsnummer / Bestellnummer', 'Händler / Anbieter', 'Netto (EUR)', 'USt (EUR)', 'Brutto (EUR)', 'Steuersatz', 'PDF-Datei'];
     const rows = records.map(r => [
       `"${r.serviceDisplayName}"`,
       `"${r.date}"`,
+      `"${r.invoiceDate}"`,
       `"${r.invoiceNumber || r.orderId}"`,
       `"${(r.seller || '').replace(/"/g, '""')}"`,
       r.netto.toFixed(2),
@@ -169,14 +170,15 @@ class MasterAnalyzer {
 
     // Table Columns
     const cols = [
-      { label: 'Dienst', width: 65 },
-      { label: 'Datum', width: 65 },
-      { label: 'Beleg- / Bestell-Nr.', width: 170 },
-      { label: 'Netto (€)', width: 65 },
-      { label: 'USt (€)', width: 60 },
-      { label: 'Brutto (€)', width: 70 },
-      { label: 'Satz', width: 40 },
-      { label: 'Anbieter / Händler', width: 247 }
+      { label: 'Dienst', width: 60 },
+      { label: 'Steuerdatum', width: 60 },
+      { label: 'Rg.Datum', width: 60 },
+      { label: 'Beleg- / Bestell-Nr.', width: 135 },
+      { label: 'Netto (€)', width: 60 },
+      { label: 'USt (€)', width: 50 },
+      { label: 'Brutto (€)', width: 60 },
+      { label: 'Satz', width: 30 },
+      { label: 'Anbieter / Händler', width: 267 }
     ];
 
     let x = 30;
@@ -209,6 +211,7 @@ class MasterAnalyzer {
       const values = [
         item.serviceDisplayName || item.service,
         item.date || '-',
+        item.invoiceDate || '-',
         item.invoiceNumber || item.orderId || '-',
         item.netto.toFixed(2),
         item.ust.toFixed(2),
@@ -231,13 +234,13 @@ class MasterAnalyzer {
     doc.rect(x, y, cols.reduce((s, c) => s + c.width, 0), rowHeight + 3).fill('#d9e2ec');
     doc.fillColor('#102a43');
     cx = x;
-    doc.text('GESAMT KONSOLIDIERT', cx + 3, y + 5, { width: cols[0].width + cols[1].width + cols[2].width - 6 });
-    cx += cols[0].width + cols[1].width + cols[2].width;
-    doc.text(totalNetto.toFixed(2), cx + 3, y + 5, { width: cols[3].width - 6 });
-    cx += cols[3].width;
-    doc.text(totalUst.toFixed(2), cx + 3, y + 5, { width: cols[4].width - 6 });
+    doc.text('GESAMT KONSOLIDIERT', cx + 3, y + 5, { width: cols[0].width + cols[1].width + cols[2].width + cols[3].width - 6 });
+    cx += cols[0].width + cols[1].width + cols[2].width + cols[3].width;
+    doc.text(totalNetto.toFixed(2), cx + 3, y + 5, { width: cols[4].width - 6 });
     cx += cols[4].width;
-    doc.text(totalBrutto.toFixed(2), cx + 3, y + 5, { width: cols[5].width - 6 });
+    doc.text(totalUst.toFixed(2), cx + 3, y + 5, { width: cols[5].width - 6 });
+    cx += cols[5].width;
+    doc.text(totalBrutto.toFixed(2), cx + 3, y + 5, { width: cols[6].width - 6 });
 
     doc.end();
     await new Promise(resolve => stream.on('finish', resolve));
