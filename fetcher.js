@@ -11,39 +11,14 @@ const endIdx = args.indexOf('--end');
 const startDateStr = startIdx !== -1 ? args[startIdx + 1] : null;
 const endDateStr = endIdx !== -1 ? args[endIdx + 1] : null;
 
-if (!isScan && (!startDateStr || !endDateStr)) {
-    console.error("Usage:");
-    console.error("  node fetcher.js --scan");
-    console.error("  node fetcher.js --start YYYY-MM-DD --end YYYY-MM-DD");
-    process.exit(1);
-}
-
 const COOKIE = process.env.COOKIE || '';
-// We no longer strictly require the cookie in .env because we use the persistent profile
-
 
 const INVOICE_DIR = path.join(__dirname, 'invoices');
 if (!fs.existsSync(INVOICE_DIR)) {
     fs.mkdirSync(INVOICE_DIR, { recursive: true });
 }
 
-function parseCookies(cookieString) {
-    return cookieString
-        .split(';')
-        .map(pair => pair.trim())
-        .filter(pair => pair.length > 0)
-        .map(pair => {
-            const index = pair.indexOf('=');
-            if (index === -1) return null;
-            return {
-                name: pair.substring(0, index),
-                value: pair.substring(index + 1),
-                domain: '.uber.com',
-                path: '/',
-            };
-        })
-        .filter(c => c !== null);
-}
+
 
 function parseDomDate(text) {
     const yearMatch = text.match(/\b(20[1-2][0-9])\b/);
@@ -81,7 +56,7 @@ function parseDomDate(text) {
     if (!isNaN(d.getTime())) return d;
     return null;
 }
-async function run() {
+async function run(isScan = false, startDate = null, endDate = null) {
     const userDataDir = path.join(__dirname, '.auth-profile');
     let context;
     try {
@@ -98,26 +73,22 @@ async function run() {
         });
     }
     
-    if (COOKIE) {
-        const cookies = parseCookies(COOKIE);
-        await context.addCookies(cookies);
-    }
-    
     const page = context.pages().length > 0 ? context.pages()[0] : await context.newPage();
+    let result = null;
 
     if (isScan) {
-        await scanMode(page);
+        result = await scanMode(page);
     } else {
-        const startDate = new Date(startDateStr);
-        const endDate = new Date(endDateStr);
-        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-            console.error("Error: Invalid date format. Use YYYY-MM-DD.");
-            process.exit(1);
+        const startD = new Date(startDate);
+        const endD = new Date(endDate);
+        if (isNaN(startD.getTime()) || isNaN(endD.getTime())) {
+            throw new Error(`Invalid date format. Use YYYY-MM-DD. Got: start=${startDate}, end=${endDate}`);
         }
-        await downloadMode(page, startDate, endDate);
+        result = await downloadMode(page, startD, endD);
     }
 
     await context.close();
+    return result;
 }
 
 async function extractTrips(page) {
@@ -196,11 +167,15 @@ async function scanMode(page) {
     
     if (parsedDates.length > 0) {
         parsedDates.sort((a, b) => a.date - b.date);
-        console.log(`Earliest Date available: ${parsedDates[0].date.toISOString().split('T')[0]} (Trip: ${parsedDates[0].trip.tripId})`);
-        console.log(`Latest Date available: ${parsedDates[parsedDates.length - 1].date.toISOString().split('T')[0]} (Trip: ${parsedDates[parsedDates.length - 1].trip.tripId})`);
+        const minDate = parsedDates[0].date.toISOString().split('T')[0];
+        const maxDate = parsedDates[parsedDates.length - 1].date.toISOString().split('T')[0];
+        console.log(`Earliest Date available: ${minDate} (Trip: ${parsedDates[0].trip.tripId})`);
+        console.log(`Latest Date available: ${maxDate} (Trip: ${parsedDates[parsedDates.length - 1].trip.tripId})`);
+        return { success: true, earliest: minDate, latest: maxDate, totalTrips: trips.length };
     } else {
         console.log(`Earliest trip entry text: ${trips[trips.length - 1].text}`);
         console.log(`Latest trip entry text: ${trips[0].text}`);
+        return { success: true, totalTrips: trips.length };
     }
 }
 
@@ -306,9 +281,33 @@ async function downloadMode(page, startDate, endDate) {
         }
     }
     console.log('Done downloading.');
+    return { success: true, count: matchingTrips.length };
 }
 
-run().catch(err => {
-    console.error('Fatal Error:', err);
-    process.exit(1);
-});
+// Wenn die Datei per CLI aufgerufen wird (nicht als Module importiert)
+if (require.main === module) {
+    const args = process.argv.slice(2);
+    const isScanCLI = args.includes('--scan');
+    const startIdx = args.indexOf('--start');
+    const endIdx = args.indexOf('--end');
+    const startDateCLI = startIdx !== -1 ? args[startIdx + 1] : null;
+    const endDateCLI = endIdx !== -1 ? args[endIdx + 1] : null;
+
+    if (!isScanCLI && (!startDateCLI || !endDateCLI)) {
+        console.error("Usage:");
+        console.error("  node fetcher.js --scan");
+        console.error("  node fetcher.js --start YYYY-MM-DD --end YYYY-MM-DD");
+        process.exit(1);
+    }
+    
+    run(isScanCLI, startDateCLI, endDateCLI).catch(err => {
+        console.error('Fatal Error:', err);
+        process.exit(1);
+    });
+} else {
+    // Für KI-Agenten: API als Modul exportieren
+    module.exports = {
+        scan: () => run(true, null, null),
+        download: (start, end) => run(false, start, end)
+    };
+}

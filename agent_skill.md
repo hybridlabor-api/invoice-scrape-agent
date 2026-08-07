@@ -37,3 +37,23 @@ node analyzer.js
 
 ### 5. Final Reporting
 Inform the user that the process is complete, summarize any key findings from the analyzer output (e.g., total amount spent, number of trips), and provide the path to the generated summary PDF so they can easily access it.
+
+## 🤖 Programmatic API (For Agents like Codex/Cline)
+If you are an AI Agent building an automated workflow in code, you can use `fetcher.js` directly as a Node.js module instead of using the CLI. It returns structured JSON objects.
+
+```javascript
+const uber = require('./fetcher.js');
+
+(async () => {
+  // 1. Scan for dates
+  const scanResult = await uber.scan();
+  console.log(scanResult); 
+  // { success: true, earliest: '2023-01-01', latest: '2023-12-31', totalTrips: 45 }
+
+  // 2. Download invoices for a specific date range
+  const downloadResult = await uber.download('2023-01-01', '2023-12-31');
+  console.log(downloadResult);
+  // { success: true, count: 12 }
+})();
+```
+This is the preferred way if you are integrating this tool into another automated Node.js system.
