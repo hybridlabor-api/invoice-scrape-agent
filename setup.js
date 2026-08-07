@@ -36,9 +36,9 @@ const envPath = path.join(__dirname, '.env');
     {
       type: 'input',
       name: 'modelName',
-      message: 'Welches Modell soll verwendet werden? (Standard: gemini-2.5-flash / gpt-4o-mini / etc.):',
+      message: 'Welches Modell soll verwendet werden? (Standard: gemma-4-31b-it / gpt-4o-mini / etc.):',
       default: (answers) => {
-        if(answers.provider.includes('Gemini')) return 'gemini-2.5-flash';
+        if(answers.provider.includes('Gemini')) return 'gemma-4-31b-it';
         if(answers.provider.includes('OpenAI')) return 'gpt-4o-mini';
         if(answers.provider.includes('Claude')) return 'claude-3-5-haiku-20241022';
         if(answers.provider.includes('Groq')) return 'llama-3.3-70b-versatile';
@@ -85,4 +85,9 @@ const envPath = path.join(__dirname, '.env');
     console.log("Auto-Login abgebrochen oder fehlgeschlagen.");
   }
   
+  // Danach direkt in das CLI-Interface wechseln!
+  console.log("\nStarte Hauptmenü...");
+  try {
+    execSync('node index.js', { stdio: 'inherit' });
+  } catch(e) {}
 })();
