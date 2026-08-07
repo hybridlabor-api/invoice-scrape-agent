@@ -414,7 +414,7 @@ async function startAliExpressFetcher() {
         console.log(`⚠️ Fehler: ${err.message}`);
       }
 
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(300).catch(() => {});
     }
 
     console.log(`\n🎉 Vorgang abgeschlossen! ${downloadedCount} neue Belege erfolgreich gespeichert in:\n   ${INVOICE_DIR}\n`);
