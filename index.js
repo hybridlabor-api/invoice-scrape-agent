@@ -126,6 +126,61 @@ async function handleMasterReport() {
   await waitPrompt();
 }
 
+async function handleEmailScaffolder() {
+  console.clear();
+  console.log("======================================================");
+  console.log("   📧 Neuer E-Mail Anbieter Generator (z.B. Lime)      ");
+  console.log("======================================================\n");
+
+  const answers = await inquirer.prompt([
+    { type: 'input', name: 'id', message: 'Dienst-ID (z.B. lime, freenow):' },
+    { type: 'input', name: 'displayName', message: 'Anzeigename (z.B. Lime Scooters):' },
+    { type: 'input', name: 'from', message: 'Absender E-Mail Adresse (z.B. receipts@li.me):' },
+    { type: 'input', name: 'subject', message: 'Betreff-Schlüsselwort (optional):' }
+  ]);
+
+  const providerConfig = {
+    id: answers.id.toLowerCase().trim(),
+    displayName: answers.displayName,
+    icon: "✉️",
+    authUrl: "imap://",
+    search: {
+      from: [answers.from.trim()],
+      subjectKeywords: answers.subject ? [answers.subject.trim()] : [],
+      folders: ["INBOX", "[Gmail]/All Mail"]
+    },
+    extraction: {
+      mode: "attachment_or_html",
+      attachmentRegex: "\\.pdf$",
+      htmlCssFixes: "@media print { body { font-size: 11pt; } }"
+    },
+    parser: {
+      currency: "EUR",
+      regex: {
+        orderId: "",
+        date: "",
+        brutto: "",
+        ust: "",
+        seller: ""
+      },
+      taxRate: "19%",
+      aiFallback: false
+    }
+  };
+
+  const emailDir = path.join(__dirname, 'services', 'email', 'providers');
+  if (!fs.existsSync(emailDir)) fs.mkdirSync(emailDir, { recursive: true });
+  
+  fs.writeFileSync(
+    path.join(emailDir, `${providerConfig.id}.json`), 
+    JSON.stringify(providerConfig, null, 2)
+  );
+
+  console.log(`\n✨ Erfolgreich erstellt! Die Datei liegt unter: services/email/providers/${providerConfig.id}.json`);
+  console.log(`📝 Öffne die Datei, um bei Bedarf Regex-Regeln für Betrag und Datum hinzuzufügen!`);
+  await waitPrompt();
+}
+
 async function waitPrompt() {
   console.log("");
   await inquirer.prompt([
@@ -159,7 +214,8 @@ async function main() {
           ...serviceChoices,
           new inquirer.Separator(),
           { name: '🌟 Gesamtabrechnung aller Dienste erstellen (Master PDF)', value: 'master_report' },
-          { name: '🤖 Neuen Scraper generieren (AI Plugin Scaffolder)', value: 'scaffold' },
+          { name: '🤖 Neuen Web-Scraper generieren (Dojo AI)', value: 'scaffold' },
+          { name: '📧 Neuen E-Mail-Anbieter hinzufügen (z.B. Lime)', value: 'scaffold_email' },
           { name: '📁 Rechnungsordner öffnen (invoices/)', value: 'open_folder' },
           new inquirer.Separator(),
           { name: '🚪 Beenden', value: 'exit' }
@@ -177,6 +233,11 @@ async function main() {
     } else if (selected === 'scaffold') {
       await handleScaffoldMenu();
       ServiceRegistry.autoDiscover(path.join(__dirname, 'services'));
+    } else if (selected === 'scaffold_email') {
+      await handleEmailScaffolder();
+      // Reload email service providers dynamically
+      const emailService = ServiceRegistry.get('email');
+      if (emailService) emailService.providers = emailService.loadProviders();
     } else if (selected === 'open_folder') {
       const invDir = path.join(__dirname, 'invoices');
       if (!fs.existsSync(invDir)) fs.mkdirSync(invDir, { recursive: true });

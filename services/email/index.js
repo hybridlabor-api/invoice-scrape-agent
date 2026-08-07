@@ -2,6 +2,7 @@ const BaseService = require('../base/BaseService');
 const EmailProviderService = require('../base/EmailProviderService');
 const fs = require('fs');
 const path = require('path');
+const inquirer = require('inquirer').default || require('inquirer');
 
 class EmailService extends BaseService {
   constructor(config = {}) {
@@ -38,12 +39,52 @@ class EmailService extends BaseService {
     console.log(`✉️ [Email Scraper] Verifying IMAP Authentication...`);
     console.log(`======================================================\n`);
 
+    require('dotenv').config();
+    
+    if (!process.env.IMAP_HOST || !process.env.IMAP_USER || !process.env.IMAP_PASS) {
+      console.log(`⚠️ Keine IMAP Zugangsdaten gefunden. Bitte richte dein Postfach ein:`);
+      const answers = await inquirer.prompt([
+        { type: 'input', name: 'host', message: 'IMAP Host (z.B. imap.gmail.com):', default: 'imap.gmail.com' },
+        { type: 'input', name: 'user', message: 'E-Mail Adresse:' },
+        { type: 'password', name: 'pass', message: 'Passwort (bzw. App-Passwort):' }
+      ]);
+      
+      const envPath = path.resolve(process.cwd(), '.env');
+      let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
+      
+      // Replace or append
+      const updateEnv = (key, val) => {
+        const regex = new RegExp(`^${key}=.*$`, 'm');
+        if (regex.test(envContent)) envContent = envContent.replace(regex, `${key}=${val}`);
+        else envContent += `\n${key}=${val}`;
+      };
+      
+      updateEnv('IMAP_HOST', answers.host);
+      updateEnv('IMAP_USER', answers.user);
+      updateEnv('IMAP_PASS', answers.pass);
+      
+      fs.writeFileSync(envPath, envContent.trim() + '\n');
+      console.log(`\n✅ Zugangsdaten sicher in .env gespeichert!`);
+      
+      // Update running environment
+      process.env.IMAP_HOST = answers.host;
+      process.env.IMAP_USER = answers.user;
+      process.env.IMAP_PASS = answers.pass;
+      
+      // Update provider configs dynamically
+      for (const provider of this.providers) {
+        provider.imapConfig.host = answers.host;
+        provider.imapConfig.user = answers.user;
+        provider.imapConfig.pass = answers.pass;
+      }
+    }
+
     if (this.providers.length === 0) {
       console.log(`❌ No provider configurations found in services/email/providers/`);
       return { success: false, error: 'No providers configured' };
     }
 
-    // Authenticate using the first provider's IMAP config, since they all share process.env
+    // Authenticate using the first provider's IMAP config
     return await this.providers[0].authenticate({ headless });
   }
 
