@@ -251,6 +251,20 @@ ipcMain.handle('stop-cron', async () => {
   return { success: false };
 });
 
-ipcMain.handle('get-cron-status', () => {
-  return !!cronProcess;
+ipcMain.handle('get-cron-status', () => !!cronProcess);
+
+ipcMain.handle('update-app', async () => {
+  const { exec } = require('child_process');
+  return new Promise((resolve) => {
+    console.log(`\n🔄 Updating application via NPM...`);
+    exec('npm install -g invoice-scrape-agent@latest', (error, stdout, stderr) => {
+      if (error) {
+        console.error('Update failed:', stderr);
+        resolve({ success: false, error: stderr || error.message });
+      } else {
+        console.log('Update successful:', stdout);
+        resolve({ success: true });
+      }
+    });
+  });
 });

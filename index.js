@@ -278,6 +278,7 @@ async function main() {
           { name: '🤖 Neuen Web-Scraper generieren (Dojo AI)', value: 'scaffold' },
           { name: '⏰ Auto-Pilot / Background Scheduler starten', value: 'cron' },
           { name: '📁 Rechnungsordner öffnen (invoices/)', value: 'open_folder' },
+          { name: '🔄 Auf neueste Version updaten (NPM)', value: 'update' },
           new inquirer.Separator(),
           { name: '🚪 Beenden', value: 'exit' }
         ]
@@ -323,6 +324,19 @@ async function main() {
       });
       cronProcess.unref(); // Detach process completely
       console.log(`✅ Auto-Pilot gestartet! Er läuft unsichtbar im Hintergrund weiter, auch wenn du dieses Fenster schließt.`);
+      await waitPrompt();
+    } else if (selected === 'update') {
+      console.clear();
+      console.log("======================================================");
+      console.log("   🔄 Update auf neueste Version wird ausgeführt...    ");
+      console.log("======================================================\n");
+      try {
+        console.log("Führe 'npm install -g invoice-scrape-agent@latest' aus...\n");
+        execSync('npm install -g invoice-scrape-agent@latest', { stdio: 'inherit' });
+        console.log("\n✅ Update erfolgreich! Bitte starte das Programm neu.");
+      } catch (e) {
+        console.error("\n❌ Fehler beim Update:", e.message);
+      }
       await waitPrompt();
     } else {
       await handleServiceMenu(selected);

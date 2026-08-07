@@ -289,6 +289,18 @@ async function saveImap() {
   if (res.success) logToTerminal('> IMAP Credentials saved successfully.', 'info');
 }
 
+async function executeAppUpdate() {
+  if (isRunning) return;
+  showModal('update-modal');
+  const res = await window.api.updateApp();
+  hideModals();
+  if (res.success) {
+    logToTerminal(`\n> App updated successfully! Please restart the app.`, 'info');
+  } else {
+    logToTerminal(`\n> Update failed: ${res.error}`, 'error');
+  }
+}
+
 async function createEmail() {
   const id = document.getElementById('ep-id').value;
   const displayName = document.getElementById('ep-name').value;
