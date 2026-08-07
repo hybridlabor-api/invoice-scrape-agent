@@ -6,32 +6,53 @@ const envPath = path.join(__dirname, '.env');
 (async () => {
   console.log("==================================================================");
   console.log("🔐 AUTO-LOGIN STARTER");
-  console.log("Es öffnet sich gleich ein lokales Chrome-Fenster (Bot-Schutz umgehen).");
+  console.log("Es öffnet sich gleich ein lokales Chrome-Fenster.");
   console.log("Bitte logge dich bei Uber ein. Das Skript wartet auf den Erfolg...");
   console.log("==================================================================");
 
   let browser;
   try {
-    // channel: 'chrome' benutzt den echten, installierten Google Chrome statt der Playwright-Version
-    // Dies umgeht in 99% der Fälle den "Browser nicht sicher" Fehler bei Uber/Cloudflare.
-    browser = await chromium.launch({ headless: false, channel: 'chrome' });
+    // Stealth-Modus für Cloudflare: Wir verstecken die Tatsache, dass es automatisiert ist
+    browser = await chromium.launch({ 
+      headless: false, 
+      channel: 'chrome',
+      args: [
+        '--disable-blink-features=AutomationControlled',
+        '--start-maximized'
+      ],
+      ignoreDefaultArgs: ['--enable-automation']
+    });
   } catch (e) {
     console.log("⚠️ Chrome konnte nicht gefunden werden. Fallback auf Standard-Chromium...");
     browser = await chromium.launch({ headless: false });
   }
   
-  const context = await browser.newContext();
+  const context = await browser.newContext({
+    viewport: null,
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+  });
+  
+  // Timeout auf unendlich setzen
+  context.setDefaultTimeout(0);
+  
   const page = await context.newPage();
 
-  try {
-    // waitUntil: 'domcontentloaded' statt 'networkidle', um Timeouts bei SPAs zu verhindern
-    await page.goto('https://riders.uber.com/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  // navigator.webdriver = false setzen, um Bot-Protection zu umgehen
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', {
+      get: () => undefined,
+    });
+  });
 
-    console.log("Warte auf erfolgreichen Login (bis zu 3 Minuten)...");
+  try {
+    await page.goto('https://riders.uber.com/', { waitUntil: 'domcontentloaded' });
+
+    console.log("Warte auf erfolgreichen Login (Du hast alle Zeit der Welt)...");
     
+    // Warten auf Erfolg - unendlicher Timeout, bis der User den Login abschließt
     await page.waitForFunction(() => {
       return window.location.href.includes('/trips') || document.querySelector('[data-baseweb="avatar"]');
-    }, { timeout: 180000 });
+    }, { timeout: 0 });
 
     console.log("\n✅ Login erkannt! Extrahiere Session-Cookies...");
     
@@ -53,9 +74,8 @@ const envPath = path.join(__dirname, '.env');
     console.log("✅ Cookie erfolgreich extrahiert und in .env gespeichert!");
     process.exit(0);
   } catch (error) {
-    console.log("\n❌ Zeitüberschreitung oder Fehler beim automatischen Login:");
+    console.log("\n❌ Fehler beim automatischen Login:");
     console.log(error.message);
-    console.log("\nTipp: Falls der Auto-Login weiterhin fehlschlägt, füge den Cookie manuell in die .env Datei ein.");
     process.exit(1);
   } finally {
     if (browser) await browser.close();
