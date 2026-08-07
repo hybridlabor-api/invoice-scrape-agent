@@ -9,21 +9,30 @@
         A U T O N O M O U S   I N V O I C E   &   R E C E I P T   S U I T E
 ```
 
-# 🧾 BDB Invoice & Receipt Suite (Uber & AliExpress)
+# 🧾 BDB Invoice & Receipt Suite (Multi-Service & IMAP)
 
 ![Architecture Sketch](assets/invoice_scrape_agent_sketch.jpg)
 
 [![Node.js Version](https://img.shields.io/badge/node-18+-blue.svg)](https://nodejs.org/)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-brightgreen.svg)](#-installation--quick-start)
-[![Services](https://img.shields.io/badge/services-Uber%20%2B%20AliExpress-purple.svg)](#-supported-services)
+[![Services](https://img.shields.io/badge/services-Uber%20%7C%20AliExpress%20%7C%20Amazon%20%7C%20Email-purple.svg)](#-supported-services)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Zero-Token](https://img.shields.io/badge/parser-Zero--Token%20Deterministic-green.svg)](#-zero-token-accounting-analyzers)
 
-> **Unified, autonomous, cross-platform CLI suite to discover, batch download, normalize PNG receipts to vector PDFs, and generate consolidated accounting tables (`Gesamtauflistung.pdf`) for Uber and AliExpress.**
+> **Unified, autonomous, cross-platform CLI suite to discover, batch download, and normalize invoices and receipts (Uber, AliExpress, Amazon) and directly from any IMAP E-Mail inbox (Bolt, Adobe, etc.). Generates consolidated accounting tables (`Gesamtauflistung.pdf`).**
 
 ---
 
 ## 🌟 Key Highlights
+
+### 📧 Universal IMAP E-Mail Scraper
+- **🔑 Interactive Auth**: Prompts for `IMAP_HOST`, `IMAP_USER`, and `IMAP_PASS` and securely stores them in a `.env` file.
+- **✉️ JSON-driven Provider Configs**: Easily scaffold new email scrapers (like Bolt, Lime, Freenow, Adobe) by typing their name in the CLI. The system automatically creates a `.json` regex config in `services/email/providers/`.
+- **✂️ Headless Playwright PDF Rendering**: Dynamically renders HTML emails into clean A4 PDFs with CSS hooks to hide footers/unnecessary clutter.
+
+### 📦 Amazon Invoices
+- **🚀 Native Popover Download**: Uses Playwright to navigate Amazon's complex DOM, bypassing standard print dialogs to fetch original Amazon PDF invoices.
+- **🔍 Regex Text Extraction**: Parses order numbers, dates, and EUR amounts deterministically.
 
 ### 🚖 Uber Invoices
 - **⚡ GraphQL Network Interception**: Captures 100% of trips via `https://riders.uber.com/graphql` without virtual scrolling glitches.
@@ -32,7 +41,7 @@
 
 ### 🛍️ AliExpress Invoices & Receipts
 - **🌐 Alibaba MTOP Interceptor**: Intercepts `mtop.aliexpress.buyer.order.list` endpoints for 100% accurate financial metadata.
-- **🖼️ Lossless PNG-to-A4 PDF Pipeline**: Automatically captures PNG receipts / Canvas renders and converts them to standardized, accounting-grade A4 PDFs (`invoices/aliexpress/AliExpress-YYYY-MM-DD-<ORDER_ID>.pdf`).
+- **🖼️ Lossless PNG-to-A4 PDF Pipeline**: Automatically captures PNG receipts / Canvas renders and converts them to standardized, accounting-grade A4 PDFs.
 - **📊 Consolidated Financial Table**: Generates structured accounting summaries (`Gesamtauflistung.pdf` and `Gesamtauflistung.json`).
 
 ### 🛡️ Core Platform
@@ -59,34 +68,34 @@ flowchart TD
         AGENT["agent_skill.md (AI Agent Wrapper)"]
     end
 
-    subgraph Uber ["🚖 Uber Service"]
-        U_AUTH["services/uber/auth.js"]
-        U_FETCH["services/uber/fetcher.js (GraphQL)"]
-        U_PARSE["services/uber/analyzer.js"]
+    subgraph WebScrapers ["🌐 Web Scrapers (Playwright)"]
+        UBER["🚖 Uber (GraphQL)"]
+        ALI["🛍️ AliExpress (MTOP)"]
+        AMZ["📦 Amazon (DOM Popover)"]
     end
 
-    subgraph AliExpress ["🛍️ AliExpress Service"]
-        A_AUTH["services/aliexpress/auth.js"]
-        A_FETCH["services/aliexpress/fetcher.js (MTOP)"]
-        A_CONV["utils/pdf-converter.js (PNG to A4 PDF)"]
-        A_PARSE["services/aliexpress/analyzer.js"]
+    subgraph EmailScrapers ["📧 E-Mail IMAP Scrapers"]
+        IMAP["ImapFlow (IMAP Auth)"]
+        JSON["JSON Configs (Bolt, Lime, etc.)"]
+        HTML2PDF["HTML to PDF Renderer"]
     end
 
     subgraph Storage ["💾 Storage & Output"]
         PROFILE[".auth-profile/"]
-        U_INV["invoices/Uber-Bv-*.pdf"]
-        A_INV["invoices/aliexpress/AliExpress-*.pdf"]
+        ENV[".env (IMAP Credentials)"]
+        INVOICES["invoices/"]
         SUMMARY["Gesamtauflistung.pdf"]
     end
 
-    CLI --> Uber
-    CLI --> AliExpress
-    U_AUTH --> PROFILE
-    A_AUTH --> PROFILE
-    U_FETCH --> U_INV
-    A_FETCH --> A_CONV --> A_INV
-    U_INV --> U_PARSE --> SUMMARY
-    A_INV --> A_PARSE --> SUMMARY
+    CLI --> WebScrapers
+    CLI --> EmailScrapers
+    WebScrapers --> PROFILE
+    EmailScrapers --> ENV
+    EmailScrapers --> IMAP
+    IMAP --> HTML2PDF
+    HTML2PDF --> INVOICES
+    WebScrapers --> INVOICES
+    INVOICES --> SUMMARY
 ```
 
 ---
@@ -156,13 +165,20 @@ npm start
 
 ```text
 ======================================================
-       🧾 BDB Invoice & Recipe Suite 🧾               
+       🧾 BDB Multi-Service Invoice & Tax Suite 🧾               
 ======================================================
 
-? Welchen Dienst möchtest du verwalten?
-❯ 🚖 Uber Invoices (Fahrten & Tax Invoices)
-  🛍️ AliExpress Invoices & Receipts (Belege & Rechnungen)
+? Welche Aktion oder welchen Dienst möchtest du wählen?
+❯ 🚖 Uber Invoices 
+  🛍️ AliExpress Invoices 
+  📦 Amazon Invoices 
+  ──────────────
+  📧 E-Mail Rechnungs-Scraper (IMAP)
+  ──────────────
+  🌟 Gesamtabrechnung aller Dienste erstellen (Master PDF)
+  🤖 Neuen Web-Scraper generieren (Dojo AI)
   📁 Rechnungsordner öffnen (invoices/)
+  ──────────────
   🚪 Beenden
 ```
 
