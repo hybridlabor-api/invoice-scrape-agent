@@ -103,7 +103,6 @@ git clone https://github.com/hybridlabor-api/uber-invoice-agent.git
 cd uber-invoice-agent
 chmod +x install.sh
 ./install.sh
-npm start
 ```
 
 #### 🪟 Windows (PowerShell / CMD)
@@ -111,8 +110,9 @@ npm start
 git clone https://github.com/hybridlabor-api/uber-invoice-agent.git
 cd uber-invoice-agent
 powershell -ExecutionPolicy Bypass -File .\install.ps1
-npm start
 ```
+
+*Note: The installer automatically checks dependencies, creates directories, and launches the guided setup.*
 
 ---
 
