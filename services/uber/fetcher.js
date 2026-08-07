@@ -204,37 +204,87 @@ async function downloadMode(page, activities, startDate, endDate) {
                 continue;
             }
 
-            const [download] = await Promise.all([
-                page.waitForEvent('download', { timeout: 15000 }),
-                btnLocator.click()
-            ]);
+            async function savePdf(dl) {
+                const tempPath = await dl.path();
+                const dataBuffer = fs.readFileSync(tempPath);
+                const pdfData = await pdf(dataBuffer);
+                const text = pdfData.text;
 
-            const tempPath = await download.path();
-            const dataBuffer = fs.readFileSync(tempPath);
-            const pdfData = await pdf(dataBuffer);
-            const text = pdfData.text;
+                let invoiceNum = 'UNKNOWN';
+                const invMatch = text.match(/Rechnungsnummer[:\s]+([A-Z0-9]+-[A-Z0-9-]+)/i) ||
+                                 text.match(/Invoice\s*(?:Number|ID)[:\s]+([A-Z0-9-]+)/i);
+                if (invMatch) invoiceNum = invMatch[1].trim();
 
-            let invoiceNum = 'UNKNOWN';
-            // Match: "Rechnungsnummer:  FGAACEGJ-03-2025-0898954"
-            const invMatch = text.match(/Rechnungsnummer[:\s]+([A-Z0-9]+-[A-Z0-9-]+)/i);
-            if (invMatch) invoiceNum = invMatch[1].trim();
+                let exactDate = parseSubtitleDate(dateStr);
+                let dateForFile = exactDate ? exactDate.toISOString().split('T')[0] : 'UNKNOWN-DATE';
 
-            let exactDate = parseSubtitleDate(dateStr);
-            let dateForFile = exactDate ? exactDate.toISOString().split('T')[0] : 'UNKNOWN-DATE';
+                const dtMatch = text.match(/([0-9]{1,2})\.([0-9]{1,2})\.([0-9]{4})/);
+                if (dtMatch) {
+                    dateForFile = `${dtMatch[3]}-${dtMatch[2].padStart(2,'0')}-${dtMatch[1].padStart(2,'0')}`;
+                }
 
-            // Try to get more precise date from PDF content
-            const dtMatch = text.match(/([0-9]{1,2})\.([0-9]{1,2})\.([0-9]{4})/);
-            if (dtMatch) {
-                dateForFile = `${dtMatch[3]}-${dtMatch[2].padStart(2,'0')}-${dtMatch[1].padStart(2,'0')}`;
+                const newFilename = `Uber-Bv-${dateForFile}-${invoiceNum}.pdf`;
+                const finalPath = path.join(INVOICE_DIR, newFilename);
+                fs.copyFileSync(tempPath, finalPath);
+                try { fs.unlinkSync(tempPath); } catch(e) {}
+
+                console.log(`  ✅ Gespeichert: ${newFilename}`);
+                downloaded++;
             }
 
-            const newFilename = `Uber-Bv-${dateForFile}-${invoiceNum}.pdf`;
-            const finalPath = path.join(INVOICE_DIR, newFilename);
-            fs.copyFileSync(tempPath, finalPath);
-            try { fs.unlinkSync(tempPath); } catch(e) {}
+            // Attempt direct download with 4s timeout
+            let directDownload = null;
+            try {
+                const [dl] = await Promise.all([
+                    page.waitForEvent('download', { timeout: 4000 }),
+                    btnLocator.click()
+                ]);
+                directDownload = dl;
+            } catch(e) {
+                // If timed out, modal likely opened
+            }
 
-            console.log(`  ✅ Gespeichert: ${newFilename}`);
-            downloaded++;
+            if (directDownload) {
+                await savePdf(directDownload);
+            } else {
+                // Check for multi-invoice modal dialog
+                await page.waitForTimeout(1000);
+                const modalLocator = page.locator('text=/Rechnungen herunterladen|Es sind mehrere Rechnungen verfügbar|Download Invoices/i');
+                const isModalOpen = (await modalLocator.count()) > 0 && (await modalLocator.first().isVisible().catch(() => false));
+
+                if (isModalOpen) {
+                    const radios = page.locator('input[type="radio"], [role="radio"]');
+                    const radioCount = await radios.count();
+                    console.log(`  ℹ️ Fahrt hat ${radioCount} Rechnungen im Dialog gefunden. Lade alle Belege herunter...`);
+
+                    for (let r = 0; r < radioCount; r++) {
+                        // If modal was closed from previous download, reopen it
+                        if (!await modalLocator.first().isVisible().catch(() => false)) {
+                            await btnLocator.click();
+                            await page.waitForTimeout(1500);
+                        }
+
+                        const radio = radios.nth(r);
+                        await radio.click({ force: true });
+                        await page.waitForTimeout(500);
+
+                        const submitBtn = page.locator('button', { hasText: /Herunterladen|Download/i }).filter({ hasNotText: /Rechnung herunterladen/i }).last();
+
+                        try {
+                            const [modalDl] = await Promise.all([
+                                page.waitForEvent('download', { timeout: 12000 }),
+                                submitBtn.click()
+                            ]);
+                            await savePdf(modalDl);
+                        } catch(mErr) {
+                            console.log(`    ⚠️ Fehler beim Herunterladen von Rechnung ${r + 1}: ${mErr.message}`);
+                        }
+                        await page.waitForTimeout(1000);
+                    }
+                } else {
+                    console.log(`  ⚠️ Kein Download-Event und kein Dialog erkannt.`);
+                }
+            }
         } catch (e) {
             console.log(`  ❌ Fehler: ${e.message}`);
         }

@@ -4,6 +4,13 @@ All notable changes to **BDB Invoice & Receipt Suite** are documented in this fi
 
 ---
 
+## [1.1.1] - 2026-08-07
+
+### 🐛 Fixed
+- **Uber Multi-Invoice Modal Support**: Automatically detects and downloads all sub-invoices (`Rechnung 1`, `Rechnung 2`, `Rechnung 3`, etc.) when a single Uber trip contains multiple receipts.
+
+---
+
 ## [1.1.0] - 2026-08-07
 
 ### 🚀 Added

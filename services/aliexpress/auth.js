@@ -2,7 +2,10 @@ const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
 
-const AUTH_DIR = path.join(__dirname, '../../.auth-profile/aliexpress');
+const rootProfile = path.join(__dirname, '../../.auth-profile/aliexpress');
+const localProfile = path.join(__dirname, '.auth-profile');
+const AUTH_DIR = fs.existsSync(path.dirname(rootProfile)) ? rootProfile : localProfile;
+
 if (!fs.existsSync(AUTH_DIR)) {
   fs.mkdirSync(AUTH_DIR, { recursive: true });
 }
@@ -12,40 +15,70 @@ async function loginAliExpress() {
   console.log("       🛍️ AliExpress Session Authenticator 🛍️       ");
   console.log("======================================================\n");
   console.log("Öffne Chrome-Browser...");
-  console.log("👉 Bitte logge dich bei AliExpress ein (per QR-Code in der App, SMS oder Passwort).\n");
+  console.log("👉 Bitte logge dich bei AliExpress ein (QR-Code per App, SMS oder Passwort).\n");
 
-  const context = await chromium.launchPersistentContext(AUTH_DIR, {
-    headless: false,
-    channel: 'chrome',
-    viewport: { width: 1360, height: 850 },
-    args: [
-      '--disable-blink-features=AutomationControlled',
-      '--no-sandbox'
-    ],
-    ignoreDefaultArgs: ['--enable-automation']
-  });
+  let context;
+  try {
+    context = await chromium.launchPersistentContext(AUTH_DIR, {
+      headless: false,
+      channel: 'chrome',
+      viewport: { width: 1360, height: 850 },
+      args: [
+        '--disable-blink-features=AutomationControlled',
+        '--no-sandbox'
+      ],
+      ignoreDefaultArgs: ['--enable-automation']
+    });
+  } catch (e) {
+    context = await chromium.launchPersistentContext(AUTH_DIR, {
+      headless: false,
+      viewport: { width: 1360, height: 850 }
+    });
+  }
+
+  context.setDefaultTimeout(0);
 
   const page = context.pages().length > 0 ? context.pages()[0] : await context.newPage();
 
+  // navigator.webdriver = false
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+  });
+
   try {
-    await page.goto('https://www.aliexpress.com/p/order/index.html', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    console.log("Lade AliExpress Bestellseite...");
+    await page.goto('https://www.aliexpress.com/p/order/index.html', { waitUntil: 'domcontentloaded' }).catch(() => {});
 
-    console.log("Warte auf erfolgreichen Login in der Bestellübersicht...");
+    console.log("Warte auf erfolgreichen Login in der Bestellübersicht (Du hast alle Zeit der Welt)...");
 
-    // Wait until user lands on the order list page
-    await page.waitForFunction(() => {
-      const url = window.location.href;
-      return (url.includes('/p/order/') || url.includes('/orderList.htm')) && !url.includes('login') && !url.includes('passport');
-    }, { timeout: 300000 });
+    let loggedIn = false;
+    while (!loggedIn) {
+      await new Promise(r => setTimeout(r, 1500));
+      
+      try {
+        const pages = context.pages();
+        for (const p of pages) {
+          const url = p.url();
+          const onOrderPage = (url.includes('/p/order/') || url.includes('/orderList.htm') || url.includes('trade.aliexpress.com')) &&
+                              !url.includes('login') && 
+                              !url.includes('passport');
 
-    // Extra brief wait to ensure session cookies write to disk
-    await page.waitForTimeout(3000);
+          if (onOrderPage) {
+            loggedIn = true;
+            break;
+          }
+        }
+      } catch (e) {}
+    }
 
-    console.log("\n✅ Erfolgreich eingeloggt! Session wurde dauerhaft gespeichert in .auth-profile/aliexpress/");
+    console.log("\n✅ Login erfolgreich erkannt! Warte kurz, um Cookies zu synchronisieren...");
+    await new Promise(r => setTimeout(r, 4000));
+    console.log(`✅ Session erfolgreich gespeichert in: ${AUTH_DIR}\n`);
+
   } catch (err) {
-    console.log("\n⚠️ Login-Vorgang abgebrochen oder Timeout erreicht.");
+    console.log("\n⚠️ Login-Fehler:", err.message);
   } finally {
-    await context.close();
+    if (context) await context.close();
   }
 }
 

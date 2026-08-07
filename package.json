@@ -1,6 +1,6 @@
 {
   "name": "bdb-dev-uber-recipe-wrapper",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Autonomous, cross-platform Uber & AliExpress tax invoice fetcher, receipt PNG-to-PDF normalizer, and PDF accounting analyzer",
   "main": "index.js",
   "bin": {
