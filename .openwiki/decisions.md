@@ -31,3 +31,35 @@
 - **Context**: AliExpress orders frequently provide receipts only as rendered PNG modal captures or Canvas elements rather than downloadable vector PDFs. Accounting workflows strictly require standardized PDF documents.
 - **Decision**: Capture the high-res PNG receipt buffer and wrap it into a standardized A4 PDF document (`utils/pdf-converter.js`) with deterministic naming (`AliExpress-YYYY-MM-DD-ORDERID.pdf`) and embedded searchable accounting metadata.
 - **Consequences**: Flawless PDF-based accounting compliance for all AliExpress orders with zero native compilation dependencies.
+
+---
+
+## ADR-005: Unified GUI with Electron and Tailwind
+- **Status**: Accepted & Implemented
+- **Context**: Relying strictly on the CLI limits non-technical users and makes configuring Cron-jobs or inputting date ranges tedious.
+- **Decision**: Wrap the Node.js core logic in an Electron shell (`invoice-scrape-agent-gui`). Use Tailwind CSS and Glassmorphism for the UI, and spawn the Node processes with real-time terminal output streaming back to the GUI.
+- **Consequences**: A stunning cross-platform desktop application that requires zero code changes to the underlying scraper services.
+
+---
+
+## ADR-006: IMAP-to-PDF Pipeline for E-Mail Receipts
+- **Status**: Accepted & Implemented
+- **Context**: Services like Bolt, Lime, Freenow, and Adobe don't have dedicated web portals for bulk invoice downloading, but they email PDF or HTML receipts.
+- **Decision**: Implement a generalized IMAP scraper (`services/email/`) that connects to standard email providers. It uses declarative `.json` provider configs (Regex) to find relevant emails. It then uses headless Playwright to inject CSS overrides to hide footers/disclaimers, and renders the raw HTML emails directly into A4 PDFs.
+- **Consequences**: Endless scalability to support hundreds of minor services with zero code, just by adding simple JSON regex files.
+
+---
+
+## ADR-007: Chronological YYYY-MM Subfolder Routing
+- **Status**: Accepted & Implemented
+- **Context**: Dumping thousands of generated PDF invoices from various services into a single `/invoices/` root folder makes manual browsing chaotic and strains the OS file explorer.
+- **Decision**: Enforce a strict chronological subfolder routing architecture (`invoices/<service>/YYYY-MM/`) for all downloaded artifacts.
+- **Consequences**: Massive performance improvement when humans browse the folders. Requires all PDF Analyzers to utilize recursive directory traversal (`getPdfFiles` function) to compile the Master Ledger.
+
+---
+
+## ADR-008: Dedicated "Steuerdatum" vs "Rechnungsdatum" Tracking
+- **Status**: Accepted & Implemented
+- **Context**: Uber and AliExpress often have trip/order dates that differ significantly from the billing date (Rechnungsdatum). German tax accounting (Buchhaltung) requires knowing both.
+- **Decision**: Update the analyzers and ledgers to explicitly extract, track, and export both `orderDate` (Steuerdatum) and `invoiceDate` (Rechnungsdatum) into the `Gesamtauflistung`. Sort primarily by Steuerdatum.
+- **Consequences**: 100% tax compliant exports for strict European accounting environments.

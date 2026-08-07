@@ -1,6 +1,6 @@
-# 🚀 Quickstart Guide: Uber Invoice Agent
+# 🚀 Quickstart Guide: BDB Invoice & Receipt Suite
 
-A cross-platform, automated CLI agent to scan, download, and analyze historical Uber trip tax invoices (`Uber-Bv-*.pdf`) into clean financial summaries.
+A cross-platform, automated CLI & GUI suite to scan, download, and analyze historical tax invoices and receipts from Uber, AliExpress, Amazon, and IMAP Emails. Generates clean financial summaries.
 
 ---
 
@@ -14,18 +14,23 @@ A cross-platform, automated CLI agent to scan, download, and analyze historical 
 
 ## 📦 Installation & Execution
  
-### Option 1: Instant via NPX
+### Global NPM Install (Recommended)
 ```bash
-npx -y bdb-dev-uber-recipe-wrapper
+npm install -g invoice-scrape-agent@latest
+```
+*(Automatically creates Desktop Shortcuts for the GUI and CLI on Mac & Windows!)*
+
+### Start the GUI:
+```bash
+invoice-scrape-agent-gui
 ```
 
-### Option 2: Global NPM Install
+### Start the CLI:
 ```bash
-npm install -g bdb-dev-uber-recipe-wrapper
-bdb-dev-uber-recipe-wrapper
+invoice-scrape-agent
 ```
 
-### Option 3: Local Git Repository
+### Local Git Repository
 ```bash
 # macOS / Linux:
 ./install.sh
@@ -41,13 +46,14 @@ npm start
 
 ## 🔑 First-Time Authentication
 
-1. Run the setup or authentication step:
-   ```bash
-   node auth.js
-   ```
-2. A persistent Chrome window will open on `https://riders.uber.com`.
-3. Log in with your Uber credentials (SMS / 2FA / Password).
-4. The authentication session is securely saved in `.auth-profile/` for subsequent automated runs without re-login.
+Authentication is handled securely per service. Run the CLI dashboard and select the desired service. If you are not logged in, it will prompt you:
+
+1. **Uber**: `npm run auth:uber` or via CLI menu.
+2. **AliExpress**: `npm run auth:aliexpress` or via CLI menu.
+3. **Amazon**: `npm run auth:amazon` or via CLI menu.
+4. **Email/IMAP**: Set credentials via CLI prompt (saved to `.env`).
+
+A persistent Chrome window will open. Log in normally. The session is saved in `.auth-profile/<service>/` for all subsequent background runs.
 
 ---
 
@@ -57,29 +63,33 @@ Start the interactive terminal dashboard:
 ```bash
 npm start
 # or
-node index.js
+invoice-scrape-agent
 ```
 
 ### Interactive Menu Options:
-1. **🔍 Verfügbaren Datumsbereich scannen**: Non-destructive fast scan of all lifetime trips using GraphQL interception to discover date boundaries and total trip count.
-2. **📥 Alle Rechnungen herunterladen**: Downloads all available lifetime invoices into `invoices/`.
-3. **📅 Rechnungen für ein Jahr herunterladen**: Downloads all invoices for a specific selected year (e.g. 2026, 2025, 2024...).
-4. **📆 Rechnungen für einen bestimmten Zeitraum herunterladen**: Prompts for custom `YYYY-MM-DD` start and end dates.
-5. **📊 Heruntergeladene Rechnungen analysieren (PDF-Tabelle)**: Runs the deterministic zero-token PDF parser to generate a financial summary table (`Gesamtauflistung.pdf`).
+- **🚖 Uber Invoices**: Scan, fetch, or analyze Uber trips.
+- **🛍️ AliExpress Invoices**: Fast DOM scanning, pagination fetching, and PNG-to-PDF rendering.
+- **📦 Amazon Invoices**: Popover automation for native Amazon PDF extraction.
+- **📧 E-Mail Rechnungs-Scraper (IMAP)**: Search emails by sender and render HTML emails to PDFs.
+- **🌟 Gesamtabrechnung aller Dienste**: Generates a Master PDF report merging all services.
+- **💻 GUI Modus starten (Electron)**: Launch the visual UI.
 
 ---
 
 ## 🤖 Programmatic Agent Skill Integration
 
-AI agents (Cline, Roo Code, Antigravity, Claude Code) can invoke the CLI non-interactively:
+AI agents can invoke the services non-interactively via npm scripts:
 
 ```bash
-# Scan lifetime range
-node fetcher.js --scan
+# Scan a service
+npm run scan:aliexpress
+npm run scan:uber
 
-# Fetch specific date range
-node fetcher.js --start 2025-01-01 --end 2025-12-31
+# Fetch invoices (add --all or --year YYYY)
+npm run fetch:aliexpress
+npm run fetch:uber
 
-# Generate summary table
-node analyzer.js
+# Generate summary table for a specific service or master
+npm run analyze:aliexpress
+npm run analyze:master
 ```
