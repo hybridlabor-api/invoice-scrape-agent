@@ -13,6 +13,7 @@
 
 ![Architecture Sketch](assets/invoice_scrape_agent_sketch.jpg)
 
+[![NPM Version](https://img.shields.io/npm/v/invoice-scrape-agent.svg?style=flat)](https://npmjs.org/package/invoice-scrape-agent)
 [![Node.js Version](https://img.shields.io/badge/node-18+-blue.svg)](https://nodejs.org/)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-brightgreen.svg)](#-installation--quick-start)
 [![Services](https://img.shields.io/badge/services-Uber%20%7C%20AliExpress%20%7C%20Amazon%20%7C%20Email-purple.svg)](#-supported-services)
