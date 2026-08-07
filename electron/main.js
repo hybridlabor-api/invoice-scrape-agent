@@ -52,19 +52,19 @@ app.on('will-quit', () => {
 // Intercept console.log and console.error to send to GUI
 const originalLog = console.log;
 console.log = (...args) => {
-  originalLog(...args);
+  try { originalLog(...args); } catch (e) {}
   if (mainWindow) {
     const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
-    mainWindow.webContents.send('backend-log', { type: 'info', message: msg });
+    try { mainWindow.webContents.send('backend-log', { type: 'info', message: msg }); } catch(e) {}
   }
 };
 
 const originalError = console.error;
 console.error = (...args) => {
-  originalError(...args);
+  try { originalError(...args); } catch (e) {}
   if (mainWindow) {
     const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
-    mainWindow.webContents.send('backend-log', { type: 'error', message: msg });
+    try { mainWindow.webContents.send('backend-log', { type: 'error', message: msg }); } catch(e) {}
   }
 };
 

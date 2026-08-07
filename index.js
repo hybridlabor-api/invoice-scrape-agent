@@ -274,7 +274,7 @@ async function main() {
           new inquirer.Separator(),
           { name: '📧 E-Mail Rechnungs-Scraper (IMAP)', value: 'email_menu' },
           new inquirer.Separator(),
-          { name: '🌟 Gesamtabrechnung aller Dienste erstellen (Master PDF)', value: 'master_report' },
+          { name: '🌟 Gesamtabrechnung aller Dienste erstellen (Master PDF, CSV, HTML)', value: 'master_report' },
           new inquirer.Separator('--- Aktionen ---'),
           { name: '🤖 Neuen Web-Scraper generieren (Dojo AI)', value: 'scaffold' },
           { name: '💻 GUI Modus starten (Electron)', value: 'start_gui' },
