@@ -1,13 +1,28 @@
 {
   "name": "uber-invoice-agent",
-  "version": "1.0.0",
-  "description": "AI-powered Uber invoice fetcher and analyzer",
+  "version": "2.0.0",
+  "description": "Autonomous, cross-platform Uber tax invoice fetcher, batch downloader, and PDF accounting analyzer",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "setup": "node auth.js",
+    "auth": "node auth.js",
     "fetch": "node fetcher.js",
+    "scan": "node fetcher.js --scan",
     "analyze": "node analyzer.js"
   },
+  "keywords": [
+    "uber",
+    "invoices",
+    "tax-invoices",
+    "pdf-parser",
+    "playwright",
+    "accounting",
+    "automation",
+    "cli-agent"
+  ],
+  "author": "TKD",
+  "license": "MIT",
   "dependencies": {
     "@google/genai": "^2.16.0",
     "dotenv": "^16.6.1",
