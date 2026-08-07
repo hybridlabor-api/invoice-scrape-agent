@@ -152,6 +152,9 @@ async function scanMode(page) {
     console.log('--- SCAN MODE ---');
     console.log('Navigating to trips page...');
     await page.goto('https://riders.uber.com/trips', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    console.log('Waiting for trips to load...');
+    await page.waitForSelector('a[href^="/trips/"]', { timeout: 20000 }).catch(() => {});
+    await page.waitForTimeout(2000); // Extra safety buffer for React
 
     await clickMoreLoop(page);
 
@@ -185,6 +188,9 @@ async function downloadMode(page, startDate, endDate) {
     console.log(`--- DOWNLOAD MODE (${sDate} to ${eDate}) ---`);
     console.log('Collecting trips...');
     await page.goto('https://riders.uber.com/trips', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    console.log('Waiting for trips to load...');
+    await page.waitForSelector('a[href^="/trips/"]', { timeout: 20000 }).catch(() => {});
+    await page.waitForTimeout(2000);
 
     // Stop clicking "More" when the last trip in the list is older than the start date
     await clickMoreLoop(page, (lastTrip) => {
@@ -209,6 +215,7 @@ async function downloadMode(page, startDate, endDate) {
         console.log(`Processing trip: ${url}`);
         
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.waitForTimeout(2000); // Wait for React to render the invoice page
         
         try {
             // Find download button
