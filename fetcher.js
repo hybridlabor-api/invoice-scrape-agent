@@ -21,41 +21,53 @@ if (!fs.existsSync(INVOICE_DIR)) {
 
 
 function parseDomDate(text) {
-    const yearMatch = text.match(/\b(20[1-2][0-9])\b/);
-    if (!yearMatch) return null;
-    const year = parseInt(yearMatch[1], 10);
+    const monthMap = {
+        'jan': 0, 'feb': 1, 'mär': 2, 'mar': 2, 'apr': 3,
+        'mai': 4, 'may': 4, 'jun': 5, 'jul': 6, 'aug': 7,
+        'sep': 8, 'okt': 9, 'oct': 9, 'nov': 10, 'dez': 11, 'dec': 11
+    };
 
-    const months = ['jan', 'feb', 'mär', 'mar', 'apr', 'mai', 'may', 'jun', 'jul', 'aug', 'sep', 'okt', 'oct', 'nov', 'dez', 'dec'];
-    let monthIdx = -1;
-    for (let i = 0; i < months.length; i++) {
-        if (new RegExp(months[i], 'i').test(text)) {
-            monthIdx = i;
-            break;
+    // Format: "31. Juli • 9:56" or "2. Dez. • 10:20"
+    const match = text.match(/(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\.?\s*[•·]/);
+    if (match) {
+        const day = parseInt(match[1], 10);
+        const monthStr = match[2].toLowerCase().substring(0, 3);
+        const month = monthMap[monthStr];
+        if (month !== undefined) {
+            // Uber doesn't show the year, so infer it
+            const now = new Date();
+            let year = now.getFullYear();
+            const candidate = new Date(Date.UTC(year, month, day));
+            // If the date is in the future, it must be from last year
+            if (candidate > now) {
+                year--;
+            }
+            return new Date(Date.UTC(year, month, day));
         }
     }
-    
-    // Normalize month index
-    if (monthIdx === 2 || monthIdx === 3) monthIdx = 2;
-    else if (monthIdx === 4) monthIdx = 3;
-    else if (monthIdx === 5 || monthIdx === 6) monthIdx = 4;
-    else if (monthIdx === 7) monthIdx = 5;
-    else if (monthIdx === 8) monthIdx = 6;
-    else if (monthIdx === 9) monthIdx = 7;
-    else if (monthIdx === 10) monthIdx = 8;
-    else if (monthIdx === 11 || monthIdx === 12) monthIdx = 9;
-    else if (monthIdx === 13) monthIdx = 10;
-    else if (monthIdx === 14 || monthIdx === 15) monthIdx = 11;
-    
-    const dayMatch = text.match(/\b([0-9]{1,2})\b/);
-    if (monthIdx !== -1 && dayMatch) {
-        return new Date(Date.UTC(year, monthIdx, parseInt(dayMatch[1], 10)));
+
+    // Format with year: "31. Juli 2026" or "2. Dez. 2025"
+    const matchWithYear = text.match(/(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\.?\s+(\d{4})/);
+    if (matchWithYear) {
+        const day = parseInt(matchWithYear[1], 10);
+        const monthStr = matchWithYear[2].toLowerCase().substring(0, 3);
+        const month = monthMap[monthStr];
+        const year = parseInt(matchWithYear[3], 10);
+        if (month !== undefined) {
+            return new Date(Date.UTC(year, month, day));
+        }
     }
-    
-    // Fallback
-    const d = new Date(text);
-    if (!isNaN(d.getTime())) return d;
+
+    // Fallback: try standard date parsing
+    const yearMatch = text.match(/\b(20[1-2][0-9])\b/);
+    if (yearMatch) {
+        const d = new Date(text);
+        if (!isNaN(d.getTime())) return d;
+    }
+
     return null;
 }
+
 async function run(isScan = false, startDate = null, endDate = null) {
     const userDataDir = path.join(__dirname, '.auth-profile');
     let context;
@@ -92,17 +104,53 @@ async function run(isScan = false, startDate = null, endDate = null) {
 
 async function extractTrips(page) {
     return await page.evaluate(() => {
-        const links = Array.from(document.querySelectorAll('a[href^="/trips/"]'));
         const tripSet = new Map();
-        for (const link of links) {
-            const href = link.getAttribute('href');
-            const tripIdMatch = href.match(/\/trips\/([a-zA-Z0-9-]+)/);
-            if (tripIdMatch) {
-                // Remove lots of whitespace
-                const text = link.innerText.replace(/\s+/g, ' ').trim();
-                tripSet.set(tripIdMatch[1], text);
+
+        // Strategy 1: Full absolute URL links (riders.uber.com/trips/UUID)
+        const allLinks = Array.from(document.querySelectorAll('a'));
+        for (const link of allLinks) {
+            const href = link.getAttribute('href') || '';
+            const match = href.match(/\/trips\/([a-f0-9-]{30,})/);
+            if (match) {
+                const tripId = match[1];
+                if (!tripSet.has(tripId)) {
+                    // Walk up the DOM to find the parent trip card and extract date text
+                    let parent = link;
+                    let cardText = '';
+                    for (let i = 0; i < 10; i++) {
+                        parent = parent.parentElement;
+                        if (!parent) break;
+                        const t = parent.innerText || '';
+                        if (t.length > 20 && t.length < 500) {
+                            cardText = t.replace(/\s+/g, ' ').trim();
+                            break;
+                        }
+                    }
+                    tripSet.set(tripId, cardText || link.innerText.replace(/\s+/g, ' ').trim());
+                }
             }
         }
+
+        // Strategy 2: Extract trip IDs from help links (jobId=UUID)
+        for (const link of allLinks) {
+            const href = link.getAttribute('href') || '';
+            const jobMatch = href.match(/jobId=([a-f0-9-]{30,})/);
+            if (jobMatch && !tripSet.has(jobMatch[1])) {
+                let parent = link;
+                let cardText = '';
+                for (let i = 0; i < 10; i++) {
+                    parent = parent.parentElement;
+                    if (!parent) break;
+                    const t = parent.innerText || '';
+                    if (t.length > 20 && t.length < 500) {
+                        cardText = t.replace(/\s+/g, ' ').trim();
+                        break;
+                    }
+                }
+                tripSet.set(jobMatch[1], cardText || '');
+            }
+        }
+
         return Array.from(tripSet.entries()).map(([tripId, text]) => ({ tripId, text }));
     });
 }
@@ -152,7 +200,7 @@ async function scanMode(page) {
     console.log('Navigating to trips page...');
     await page.goto('https://riders.uber.com/trips', { waitUntil: 'domcontentloaded', timeout: 60000 });
     console.log('Waiting for trips to load...');
-    await page.waitForSelector('a[href^="/trips/"]', { timeout: 15000 }).catch(() => {});
+    await page.waitForSelector('a[href*="/trips/"]', { timeout: 15000 }).catch(() => {});
     
     if (page.url().includes('auth') || await page.locator('input[name="email"]').count() > 0) {
         console.error("\n❌ FEHLER: Du bist nicht eingeloggt! Die Session wurde nicht gespeichert.");
@@ -195,7 +243,7 @@ async function downloadMode(page, startDate, endDate) {
     console.log('Collecting trips...');
     await page.goto('https://riders.uber.com/trips', { waitUntil: 'domcontentloaded', timeout: 60000 });
     console.log('Waiting for trips to load...');
-    await page.waitForSelector('a[href^="/trips/"]', { timeout: 15000 }).catch(() => {});
+    await page.waitForSelector('a[href*="/trips/"]', { timeout: 15000 }).catch(() => {});
     
     if (page.url().includes('auth') || await page.locator('input[name="email"]').count() > 0) {
         console.error("\n❌ FEHLER: Du bist nicht eingeloggt! Die Session wurde nicht gespeichert.");
