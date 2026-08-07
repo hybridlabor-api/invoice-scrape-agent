@@ -18,7 +18,6 @@
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-brightgreen.svg)](#-installation--quick-start)
 [![Services](https://img.shields.io/badge/services-Uber%20%7C%20AliExpress%20%7C%20Amazon%20%7C%20Email-purple.svg)](#-supported-services)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Zero-Token](https://img.shields.io/badge/parser-Zero--Token%20Deterministic-green.svg)](#-zero-token-accounting-analyzers)
 
 > **Unified, autonomous, cross-platform CLI suite to discover, batch download, and normalize invoices and receipts (Uber, AliExpress, Amazon) and directly from any IMAP E-Mail inbox (Bolt, Adobe, etc.). Generates consolidated accounting tables (`Gesamtauflistung.pdf`).**
 
