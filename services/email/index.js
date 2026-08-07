@@ -34,18 +34,18 @@ class EmailService extends BaseService {
     return providers;
   }
 
-  async authenticate({ headless = false } = {}) {
+  async authenticate({ headless = false, force = false } = {}) {
     console.log(`\n======================================================`);
     console.log(`✉️ [Email Scraper] Verifying IMAP Authentication...`);
     console.log(`======================================================\n`);
 
     require('dotenv').config();
     
-    if (!process.env.IMAP_HOST || !process.env.IMAP_USER || !process.env.IMAP_PASS) {
-      console.log(`⚠️ Keine IMAP Zugangsdaten gefunden. Bitte richte dein Postfach ein:`);
+    if (force || !process.env.IMAP_HOST || !process.env.IMAP_USER || !process.env.IMAP_PASS) {
+      console.log(`⚠️ Bitte richte dein Postfach für den IMAP-Zugriff ein:`);
       const answers = await inquirer.prompt([
-        { type: 'input', name: 'host', message: 'IMAP Host (z.B. imap.gmail.com):', default: 'imap.gmail.com' },
-        { type: 'input', name: 'user', message: 'E-Mail Adresse:' },
+        { type: 'input', name: 'host', message: 'IMAP Host (z.B. imap.gmail.com):', default: process.env.IMAP_HOST || 'imap.gmail.com' },
+        { type: 'input', name: 'user', message: 'E-Mail Adresse:', default: process.env.IMAP_USER || '' },
         { type: 'password', name: 'pass', message: 'Passwort (bzw. App-Passwort):' }
       ]);
       

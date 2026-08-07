@@ -1,26 +1,33 @@
 {
   "id": "bolt",
-  "displayName": "Bolt Mobility",
-  "icon": "⚡",
-  "authUrl": "imap://imap.gmail.com",
+  "displayName": "bolt",
+  "icon": "✉️",
+  "authUrl": "imap://",
   "search": {
-    "from": ["receipts-germany@bolt.eu", "receipts@bolt.eu"],
-    "subjectKeywords": ["Deine Fahrt mit Bolt", "Your ride with Bolt"],
-    "folders": ["INBOX", "[Gmail]/All Mail"]
+    "from": [
+      "recipess@bolt.com"
+    ],
+    "subjectKeywords": [
+      "invoice, rechnung"
+    ],
+    "folders": [
+      "INBOX",
+      "[Gmail]/All Mail"
+    ]
   },
   "extraction": {
     "mode": "attachment_or_html",
     "attachmentRegex": "\\.pdf$",
-    "htmlCssFixes": "@media print { body { font-size: 11pt; } .unsubscribe, .footer-links, td[height=\"60\"], img[src*=\"tracking\"] { display: none !important; } }"
+    "htmlCssFixes": "@media print { body { font-size: 11pt; } }"
   },
   "parser": {
     "currency": "EUR",
     "regex": {
-      "orderId": "(?:Fahrts-ID|Trip ID):?\\s*([A-Z0-9-]+)",
-      "date": "(?:Datum|Date):?\\s*(\\d{2}\\.\\d{2}\\.\\d{4}|\\d{4}-\\d{2}-\\d{2})",
-      "brutto": "(?:Gesamtbetrag|Total):?\\s*€?\\s*([0-9.,]+)",
-      "ust": "(?:enthaltene MwSt|USt|VAT\\s*\\(?19%\\)?):?\\s*€?\\s*([0-9.,]+)",
-      "seller": "(?:Bolt Operations OÜ|Bolt Technology OU)"
+      "orderId": "",
+      "date": "",
+      "brutto": "",
+      "ust": "",
+      "seller": ""
     },
     "taxRate": "19%",
     "aiFallback": false

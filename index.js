@@ -181,6 +181,63 @@ async function handleEmailScaffolder() {
   await waitPrompt();
 }
 
+async function handleEmailMenu() {
+  const emailService = ServiceRegistry.get('email');
+  while (true) {
+    console.clear();
+    console.log("======================================================");
+    console.log("       📧 E-Mail Postfach-Scanner (IMAP) 📧           ");
+    console.log("======================================================\n");
+
+    const { action } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'action',
+        message: 'Was möchtest du im E-Mail Scraper tun?',
+        choices: [
+          { name: '⚙️  IMAP Server-Verbindung einrichten (Login)', value: 'auth' },
+          { name: '➕ Neuen E-Mail-Dienstleister anlegen (z.B. Lime)', value: 'scaffold_email' },
+          new inquirer.Separator(),
+          { name: '🔍 Alle konfigurierten E-Mail-Dienstleister scannen', value: 'scan' },
+          { name: '⬇️  Rechnungen für ein bestimmtes Jahr herunterladen', value: 'download_year' },
+          new inquirer.Separator(),
+          { name: '🔙 Zurück zum Hauptmenü', value: 'back' }
+        ]
+      }
+    ]);
+
+    if (action === 'back') break;
+
+    try {
+      if (action === 'auth') {
+        await emailService.authenticate({ headless: false, force: true });
+        await waitPrompt();
+      } else if (action === 'scaffold_email') {
+        await handleEmailScaffolder();
+        emailService.providers = emailService.loadProviders(); // Refresh list
+      } else if (action === 'scan') {
+        await emailService.scan({});
+        await waitPrompt();
+      } else if (action === 'download_year') {
+        const { year } = await inquirer.prompt([
+          {
+            type: 'input',
+            name: 'year',
+            message: 'Welches Jahr möchtest du herunterladen? (z.B. 2025):',
+            default: new Date().getFullYear().toString(),
+            validate: (input) => /^\d{4}$/.test(input) || 'Bitte ein 4-stelliges Jahr eingeben!'
+          }
+        ]);
+        await emailService.fetch({ year });
+        await waitPrompt();
+      }
+    } catch (err) {
+      console.error(`\n❌ Fehler bei der Ausführung:`, err.message);
+      await waitPrompt();
+    }
+  }
+}
+
 async function waitPrompt() {
   console.log("");
   await inquirer.prompt([
@@ -200,10 +257,12 @@ async function main() {
     console.log("======================================================\n");
 
     const services = ServiceRegistry.list();
-    const serviceChoices = services.map(s => ({
-      name: `${s.icon} ${s.displayName}`,
-      value: s.id
-    }));
+    const serviceChoices = services
+      .filter(s => s.id !== 'email')
+      .map(s => ({
+        name: `${s.icon} ${s.displayName}`,
+        value: s.id
+      }));
 
     const { selected } = await inquirer.prompt([
       {
@@ -213,9 +272,10 @@ async function main() {
         choices: [
           ...serviceChoices,
           new inquirer.Separator(),
+          { name: '📧 E-Mail Rechnungs-Scraper (IMAP)', value: 'email_menu' },
+          new inquirer.Separator(),
           { name: '🌟 Gesamtabrechnung aller Dienste erstellen (Master PDF)', value: 'master_report' },
           { name: '🤖 Neuen Web-Scraper generieren (Dojo AI)', value: 'scaffold' },
-          { name: '📧 Neuen E-Mail-Anbieter hinzufügen (z.B. Lime)', value: 'scaffold_email' },
           { name: '📁 Rechnungsordner öffnen (invoices/)', value: 'open_folder' },
           new inquirer.Separator(),
           { name: '🚪 Beenden', value: 'exit' }
@@ -230,14 +290,11 @@ async function main() {
 
     if (selected === 'master_report') {
       await handleMasterReport();
+    } else if (selected === 'email_menu') {
+      await handleEmailMenu();
     } else if (selected === 'scaffold') {
       await handleScaffoldMenu();
       ServiceRegistry.autoDiscover(path.join(__dirname, 'services'));
-    } else if (selected === 'scaffold_email') {
-      await handleEmailScaffolder();
-      // Reload email service providers dynamically
-      const emailService = ServiceRegistry.get('email');
-      if (emailService) emailService.providers = emailService.loadProviders();
     } else if (selected === 'open_folder') {
       const invDir = path.join(__dirname, 'invoices');
       if (!fs.existsSync(invDir)) fs.mkdirSync(invDir, { recursive: true });
