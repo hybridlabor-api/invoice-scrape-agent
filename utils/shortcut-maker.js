@@ -28,6 +28,32 @@ function createShortcuts() {
     execSync(`chmod +x "${cliScript}"`);
     
     console.log(`✅ Mac shortcuts created on Desktop (.command files).`);
+    
+    try {
+      const iconPath = path.join(__dirname, '..', 'assets', 'icon_black.png');
+      const setIconSrc = path.join(__dirname, '..', 'assets', 'set_icon.m');
+      const setIconBin = path.join(__dirname, '..', 'assets', 'set_icon');
+      if (fs.existsSync(iconPath)) {
+        fs.writeFileSync(setIconSrc, `
+#import <Cocoa/Cocoa.h>
+int main(int argc, const char * argv[]) {
+    @autoreleasepool {
+        NSString *iconPath = [NSString stringWithUTF8String:argv[1]];
+        NSString *filePath = [NSString stringWithUTF8String:argv[2]];
+        NSImage *icon = [[NSImage alloc] initWithContentsOfFile:iconPath];
+        BOOL result = [[NSWorkspace sharedWorkspace] setIcon:icon forFile:filePath options:0];
+        return result ? 0 : 1;
+    }
+}
+        `.trim());
+        execSync(`clang -framework Cocoa "${setIconSrc}" -o "${setIconBin}"`);
+        execSync(`"${setIconBin}" "${iconPath}" "${guiScript}"`);
+        execSync(`"${setIconBin}" "${iconPath}" "${cliScript}"`);
+        console.log(`✅ Applied custom icon to Desktop shortcuts.`);
+      }
+    } catch (e) {
+      console.log(`⚠️ Could not set custom icon: ${e.message}`);
+    }
   } else if (isWin) {
     const guiBat = path.join(desktop, 'BDB_Invoice_GUI.bat');
     const cliBat = path.join(desktop, 'BDB_Invoice_CLI.bat');
