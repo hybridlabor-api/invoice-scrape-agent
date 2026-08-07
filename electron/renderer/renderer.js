@@ -295,7 +295,7 @@ async function executeAppUpdate() {
   const res = await window.api.updateApp();
   hideModals();
   if (res.success) {
-    logToTerminal(`\n> App updated successfully! Please restart the app.`, 'info');
+    logToTerminal(`\n> App updated successfully! The application will restart in 2 seconds...`, 'info');
   } else {
     logToTerminal(`\n> Update failed: ${res.error}`, 'error');
   }

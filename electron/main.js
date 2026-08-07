@@ -264,6 +264,12 @@ ipcMain.handle('update-app', async () => {
       } else {
         console.log('Update successful:', stdout);
         resolve({ success: true });
+        
+        // Wait 2 seconds so the GUI can show success message before restarting
+        setTimeout(() => {
+          app.relaunch();
+          app.exit(0);
+        }, 2000);
       }
     });
   });
