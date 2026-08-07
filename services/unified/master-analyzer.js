@@ -24,30 +24,43 @@ class MasterAnalyzer {
     for (const entry of entries) {
       if (entry.isDirectory()) {
         const ledgerPath = path.join(this.invoicesDir, entry.name, `${entry.name}_ledger.json`);
-        if (fs.existsSync(ledgerPath)) {
+        const jsonPath = path.join(this.invoicesDir, entry.name, 'Gesamtauflistung.json');
+        const targetFile = fs.existsSync(ledgerPath) ? ledgerPath : (fs.existsSync(jsonPath) ? jsonPath : null);
+
+        if (targetFile) {
           try {
-            const raw = fs.readFileSync(ledgerPath, 'utf8');
+            const raw = fs.readFileSync(targetFile, 'utf8');
             const data = JSON.parse(raw);
+            let items = [];
             if (Array.isArray(data)) {
-              data.forEach(item => {
-                records.push({
-                  service: item.service || entry.name,
-                  serviceDisplayName: item.serviceDisplayName || entry.name.toUpperCase(),
-                  invoiceNumber: item.invoiceNumber || item.rechnungsnummer || item.orderId || '',
-                  date: item.steuerdatum || item.date || item.rechnungsdatum || '',
-                  invoiceDate: item.rechnungsdatum || item.date || '',
-                  netto: parseFloat(item.netto) || 0,
-                  ust: parseFloat(item.ust) || 0,
-                  brutto: parseFloat(item.brutto) || 0,
-                  taxRate: item.taxRate || item.ustSatz || '19%',
-                  seller: item.seller || item.anbieter || 'Unbekannt',
-                  currency: item.currency || 'EUR',
-                  pdfPath: item.pdfPath || ''
-                });
-              });
+              items = data;
+            } else if (data && typeof data === 'object') {
+              items = Object.values(data);
             }
+
+            items.forEach(item => {
+              const steuerdatum = item.steuerdatum || item.date || item.rechnungsdatum || '';
+              const rechnungsdatum = item.rechnungsdatum || item.invoiceDate || item.steuerdatum || item.date || '';
+              records.push({
+                service: item.service || entry.name,
+                serviceDisplayName: item.serviceDisplayName || (entry.name === 'amazon' ? 'Amazon' : entry.name === 'uber' ? 'Uber' : entry.name === 'aliexpress' ? 'AliExpress' : entry.name.toUpperCase()),
+                invoiceNumber: item.invoiceNumber || item.rechnungsnummer || item.orderId || item.id || '',
+                orderId: item.orderId || item.invoiceNumber || item.rechnungsnummer || item.id || '',
+                steuerdatum,
+                rechnungsdatum,
+                date: steuerdatum,
+                invoiceDate: rechnungsdatum,
+                netto: parseFloat(item.netto != null ? item.netto : item.net) || 0,
+                ust: parseFloat(item.ust != null ? item.ust : item.vat) || 0,
+                brutto: parseFloat(item.brutto != null ? item.brutto : (item.gross != null ? item.gross : item.totalAmount)) || 0,
+                taxRate: item.taxRate || item.ustSatz || '19%',
+                seller: item.seller || item.store || item.storeName || item.anbieter || 'Unbekannt',
+                currency: item.currency || 'EUR',
+                pdfPath: item.pdfPath || ''
+              });
+            });
           } catch (e) {
-            console.warn(`[MasterAnalyzer] Error reading ledger ${ledgerPath}:`, e.message);
+            console.warn(`[MasterAnalyzer] Error reading ledger ${targetFile}:`, e.message);
           }
         }
       }

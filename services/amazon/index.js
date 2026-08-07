@@ -342,10 +342,11 @@ class AmazonService extends BaseService {
 
     // Export CSV (Optimized for German Excel / OpenCalc with comma decimals)
     const csvFile = path.join(this.invoicesDir, 'amazon_ledger.csv');
-    const csvHeaders = ['Nr', 'Datum', 'Bestellnummer', 'Händler', 'Netto (EUR)', 'USt (EUR)', 'Brutto (EUR)', 'Steuersatz', 'PDF-Datei'];
+    const csvHeaders = ['Nr', 'Steuerdatum', 'Rechnungsdatum', 'Bestellnummer', 'Händler', 'Netto (EUR)', 'USt (EUR)', 'Brutto (EUR)', 'Steuersatz', 'PDF-Datei'];
     const csvRows = sorted.map((r, i) => [
       i + 1,
-      `"${r.date || '-'}"`,
+      `"${r.steuerdatum || r.date || '-'}"`,
+      `"${r.rechnungsdatum || r.invoiceDate || r.steuerdatum || r.date || '-'}"`,
       `"${r.orderId || '-'}"`,
       `"${(r.seller || 'Amazon EU S.a.r.l.').replace(/"/g, '""')}"`,
       (r.netto || 0).toFixed(2).replace('.', ','),
@@ -383,7 +384,8 @@ class AmazonService extends BaseService {
     <thead>
       <tr>
         <th>Nr.</th>
-        <th>Datum</th>
+        <th>Steuerdatum</th>
+        <th>Rechnungsdatum</th>
         <th>Bestellnummer</th>
         <th>Händler</th>
         <th class="text-right">Netto (€)</th>
@@ -398,7 +400,8 @@ class AmazonService extends BaseService {
       html += `
       <tr>
         <td>${i + 1}</td>
-        <td>${r.date || '-'}</td>
+        <td>${r.steuerdatum || r.date || '-'}</td>
+        <td>${r.rechnungsdatum || r.invoiceDate || r.steuerdatum || r.date || '-'}</td>
         <td>${r.orderId || '-'}</td>
         <td>${r.seller || 'Amazon EU S.a.r.l.'}</td>
         <td class="text-right">${(r.netto || 0).toFixed(2).replace('.', ',')}</td>
@@ -410,7 +413,7 @@ class AmazonService extends BaseService {
 
     html += `
       <tr class="totals">
-        <td colspan="4">GESAMTSUMME</td>
+        <td colspan="5">GESAMTSUMME</td>
         <td class="text-right">${totalNetto.toFixed(2).replace('.', ',')}</td>
         <td class="text-right">${totalUst.toFixed(2).replace('.', ',')}</td>
         <td class="text-right">${totalBrutto.toFixed(2).replace('.', ',')}</td>
@@ -427,11 +430,16 @@ class AmazonService extends BaseService {
     let excelFiles = null;
     try {
       const { exportServiceExcel } = require('../../utils/excel-exporter');
+      const formattedRecords = sorted.map(it => ({
+        ...it,
+        steuerdatum: it.steuerdatum || it.date || '-',
+        rechnungsdatum: it.rechnungsdatum || it.invoiceDate || it.steuerdatum || it.date || '-'
+      }));
       excelFiles = await exportServiceExcel({
         serviceName: 'Amazon',
         title: 'Amazon Rechnungsübersicht',
         invoicesDir: this.invoicesDir,
-        records: sorted
+        records: formattedRecords
       });
     } catch (err) {
       console.warn(`[Amazon] Warning generating Excel:`, err.message);

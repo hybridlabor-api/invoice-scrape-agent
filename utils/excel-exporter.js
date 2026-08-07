@@ -13,7 +13,7 @@ const NUM_FMT = '#,##0.00';
 function groupByMonth(records) {
   const monthly = {};
   for (const r of records) {
-    const rawDate = r.date || r.rechnungsdatum || r.steuerdatum || '';
+    const rawDate = r.steuerdatum || r.date || r.rechnungsdatum || '';
     const month = /^\d{4}-\d{2}/.test(rawDate) ? rawDate.slice(0, 7) : 'Unbekannt';
     if (!monthly[month]) {
       monthly[month] = {
@@ -34,13 +34,16 @@ function groupByMonth(records) {
 }
 
 /**
- * Helper to build cell object
+ * Helper to build cell object with value AND optional Excel formula.
+ * Critical: When formula is provided, 'v' is ALWAYS populated with the pre-calculated number
+ * so that Google Sheets, OpenCalc, and Excel immediately display the total value without needing recalculation.
  */
 function numCell(val, formula = null) {
+  const num = Number(Number(val || 0).toFixed(2));
   if (formula) {
-    return { t: 'n', f: formula, z: NUM_FMT };
+    return { t: 'n', v: num, f: formula, z: NUM_FMT };
   }
-  return { t: 'n', v: Number((val || 0).toFixed(2)), z: NUM_FMT };
+  return { t: 'n', v: num, z: NUM_FMT };
 }
 
 function strCell(val) {
@@ -64,14 +67,15 @@ async function exportServiceExcel({
   const workbook = XLSX.utils.book_new();
 
   // -------------------------------------------------------------
-  // Sheet 1: Alle Belege (Detailtabelle)
+  // Sheet 1: Alle Belege (Detailtabelle mit Steuer- und Rechnungsdatum)
   // -------------------------------------------------------------
   const sheet1Data = [];
 
   // Header Row (Row 1)
   sheet1Data.push([
     strCell('Nr.'),
-    strCell('Datum'),
+    strCell('Steuerdatum'),
+    strCell('Rechnungsdatum'),
     strCell('Beleg-/Bestellnummer'),
     strCell('Händler / Anbieter'),
     strCell('Netto (€)'),
@@ -81,22 +85,35 @@ async function exportServiceExcel({
     strCell('PDF-Datei')
   ]);
 
+  let totalNetto = 0;
+  let totalUst = 0;
+  let totalBrutto = 0;
+
   // Data Rows (Rows 2 to N+1)
   records.forEach((r, idx) => {
+    const net = Number((r.netto || 0).toFixed(2));
+    const ust = Number((r.ust || 0).toFixed(2));
+    const gross = Number((r.brutto || 0).toFixed(2));
+
+    totalNetto += net;
+    totalUst += ust;
+    totalBrutto += gross;
+
     sheet1Data.push([
       { t: 'n', v: idx + 1 },
-      strCell(r.date || r.rechnungsdatum || r.steuerdatum || '-'),
+      strCell(r.steuerdatum || r.date || '-'),
+      strCell(r.rechnungsdatum || r.invoiceDate || r.steuerdatum || r.date || '-'),
       strCell(r.orderId || r.invoiceNumber || r.id || '-'),
-      strCell(r.seller || r.anbieter || '-'),
-      numCell(r.netto),
-      numCell(r.ust),
-      numCell(r.brutto),
+      strCell(r.seller || r.store || r.anbieter || '-'),
+      numCell(net),
+      numCell(ust),
+      numCell(gross),
       strCell(r.taxRate || r.ustSatz || '19%'),
       strCell(r.pdfPath || '')
     ]);
   });
 
-  const lastDataRow = records.length + 1; // 1-indexed
+  const lastDataRow = records.length + 1; // 1-indexed (e.g. 52 for 51 records)
 
   // Totals Row
   if (records.length > 0) {
@@ -104,10 +121,11 @@ async function exportServiceExcel({
       strCell(''),
       strCell(''),
       strCell(''),
+      strCell(''),
       strCell('GESAMTSUMME:'),
-      numCell(null, `SUM(E2:E${lastDataRow})`),
-      numCell(null, `SUM(F2:F${lastDataRow})`),
-      numCell(null, `SUM(G2:G${lastDataRow})`),
+      numCell(totalNetto, `SUM(F2:F${lastDataRow})`),
+      numCell(totalUst, `SUM(G2:G${lastDataRow})`),
+      numCell(totalBrutto, `SUM(H2:H${lastDataRow})`),
       strCell(''),
       strCell('')
     ]);
@@ -117,6 +135,7 @@ async function exportServiceExcel({
   ws1['!cols'] = [
     { wch: 6 },
     { wch: 14 },
+    { wch: 16 },
     { wch: 28 },
     { wch: 32 },
     { wch: 15 },
@@ -141,7 +160,17 @@ async function exportServiceExcel({
   ]);
 
   const monthlyGroups = groupByMonth(records);
+  let sumMonthCount = 0;
+  let sumMonthNetto = 0;
+  let sumMonthUst = 0;
+  let sumMonthBrutto = 0;
+
   monthlyGroups.forEach(m => {
+    sumMonthCount += m.count;
+    sumMonthNetto += m.netto;
+    sumMonthUst += m.ust;
+    sumMonthBrutto += m.brutto;
+
     sheet2Data.push([
       strCell(m.month),
       { t: 'n', v: m.count },
@@ -155,10 +184,10 @@ async function exportServiceExcel({
   if (monthlyGroups.length > 0) {
     sheet2Data.push([
       strCell('GESAMT:'),
-      { t: 'n', f: `SUM(B2:B${lastMonthRow})` },
-      numCell(null, `SUM(C2:C${lastMonthRow})`),
-      numCell(null, `SUM(D2:D${lastMonthRow})`),
-      numCell(null, `SUM(E2:E${lastMonthRow})`)
+      { t: 'n', v: sumMonthCount, f: `SUM(B2:B${lastMonthRow})` },
+      numCell(sumMonthNetto, `SUM(C2:C${lastMonthRow})`),
+      numCell(sumMonthUst, `SUM(D2:D${lastMonthRow})`),
+      numCell(sumMonthBrutto, `SUM(E2:E${lastMonthRow})`)
     ]);
   }
 
@@ -208,17 +237,29 @@ async function exportMasterExcel({ invoicesDir, records = [], metrics = {} }) {
     strCell('Steuersatz')
   ]);
 
+  let totalNetto = 0;
+  let totalUst = 0;
+  let totalBrutto = 0;
+
   records.forEach((r, idx) => {
+    const net = Number((r.netto || 0).toFixed(2));
+    const ust = Number((r.ust || 0).toFixed(2));
+    const gross = Number((r.brutto || 0).toFixed(2));
+
+    totalNetto += net;
+    totalUst += ust;
+    totalBrutto += gross;
+
     sheet1Data.push([
       { t: 'n', v: idx + 1 },
       strCell(r.serviceDisplayName || r.service || 'Sonstige'),
-      strCell(r.date || '-'),
-      strCell(r.invoiceDate || r.rechnungsdatum || '-'),
+      strCell(r.steuerdatum || r.date || '-'),
+      strCell(r.rechnungsdatum || r.invoiceDate || r.steuerdatum || r.date || '-'),
       strCell(r.invoiceNumber || r.orderId || r.id || '-'),
-      strCell(r.seller || '-'),
-      numCell(r.netto),
-      numCell(r.ust),
-      numCell(r.brutto),
+      strCell(r.seller || r.store || r.anbieter || '-'),
+      numCell(net),
+      numCell(ust),
+      numCell(gross),
       strCell(r.taxRate || '19%')
     ]);
   });
@@ -232,9 +273,9 @@ async function exportMasterExcel({ invoicesDir, records = [], metrics = {} }) {
       strCell(''),
       strCell(''),
       strCell('GESAMTSUMME:'),
-      numCell(null, `SUM(G2:G${lastDataRow})`),
-      numCell(null, `SUM(H2:H${lastDataRow})`),
-      numCell(null, `SUM(I2:I${lastDataRow})`),
+      numCell(totalNetto, `SUM(G2:G${lastDataRow})`),
+      numCell(totalUst, `SUM(H2:H${lastDataRow})`),
+      numCell(totalBrutto, `SUM(I2:I${lastDataRow})`),
       strCell('')
     ]);
   }
@@ -268,7 +309,17 @@ async function exportMasterExcel({ invoicesDir, records = [], metrics = {} }) {
   ]);
 
   const monthlyGroups = groupByMonth(records);
+  let sumMonthCount = 0;
+  let sumMonthNetto = 0;
+  let sumMonthUst = 0;
+  let sumMonthBrutto = 0;
+
   monthlyGroups.forEach(m => {
+    sumMonthCount += m.count;
+    sumMonthNetto += m.netto;
+    sumMonthUst += m.ust;
+    sumMonthBrutto += m.brutto;
+
     sheet2Data.push([
       strCell(m.month),
       { t: 'n', v: m.count },
@@ -282,10 +333,10 @@ async function exportMasterExcel({ invoicesDir, records = [], metrics = {} }) {
   if (monthlyGroups.length > 0) {
     sheet2Data.push([
       strCell('GESAMT:'),
-      { t: 'n', f: `SUM(B2:B${lastMonthRow})` },
-      numCell(null, `SUM(C2:C${lastMonthRow})`),
-      numCell(null, `SUM(D2:D${lastMonthRow})`),
-      numCell(null, `SUM(E2:E${lastMonthRow})`)
+      { t: 'n', v: sumMonthCount, f: `SUM(B2:B${lastMonthRow})` },
+      numCell(sumMonthNetto, `SUM(C2:C${lastMonthRow})`),
+      numCell(sumMonthUst, `SUM(D2:D${lastMonthRow})`),
+      numCell(sumMonthBrutto, `SUM(E2:E${lastMonthRow})`)
     ]);
   }
 
@@ -312,7 +363,17 @@ async function exportMasterExcel({ invoicesDir, records = [], metrics = {} }) {
       strCell('Brutto (€)')
     ]);
 
+    let sumServiceCount = 0;
+    let sumServiceNetto = 0;
+    let sumServiceUst = 0;
+    let sumServiceBrutto = 0;
+
     Object.entries(metrics.byService).forEach(([srvKey, srvData]) => {
+      sumServiceCount += srvData.count;
+      sumServiceNetto += srvData.netto;
+      sumServiceUst += srvData.ust;
+      sumServiceBrutto += srvData.brutto;
+
       sheet3Data.push([
         strCell(srvData.displayName || srvKey),
         { t: 'n', v: srvData.count },
@@ -325,10 +386,10 @@ async function exportMasterExcel({ invoicesDir, records = [], metrics = {} }) {
     const lastServiceRow = Object.keys(metrics.byService).length + 1;
     sheet3Data.push([
       strCell('GESAMT:'),
-      { t: 'n', f: `SUM(B2:B${lastServiceRow})` },
-      numCell(null, `SUM(C2:C${lastServiceRow})`),
-      numCell(null, `SUM(D2:D${lastServiceRow})`),
-      numCell(null, `SUM(E2:E${lastServiceRow})`)
+      { t: 'n', v: sumServiceCount, f: `SUM(B2:B${lastServiceRow})` },
+      numCell(sumServiceNetto, `SUM(C2:C${lastServiceRow})`),
+      numCell(sumServiceUst, `SUM(D2:D${lastServiceRow})`),
+      numCell(sumServiceBrutto, `SUM(E2:E${lastServiceRow})`)
     ]);
 
     const ws3 = XLSX.utils.aoa_to_sheet(sheet3Data);

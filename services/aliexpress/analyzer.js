@@ -6,6 +6,7 @@ const { getInvoicesDir, getLedgerFile } = require('../../utils/paths');
 
 const INVOICE_DIR = getInvoicesDir('aliexpress');
 const LEDGER_FILE = getLedgerFile('aliexpress');
+const SCAN_SUMMARY_FILE = path.join(INVOICE_DIR, 'account_scan_summary.json');
 const OUTPUT_PDF = path.join(INVOICE_DIR, 'Gesamtauflistung.pdf');
 const OUTPUT_JSON = path.join(INVOICE_DIR, 'Gesamtauflistung.json');
 
@@ -28,7 +29,7 @@ async function analyzeAliExpressInvoices() {
       if (stat && stat.isDirectory()) {
         results = results.concat(getPdfFiles(fullPath));
       } else if (file.endsWith('.pdf') && file.startsWith('AliExpress-')) {
-        results.push(path.basename(fullPath)); // analyzer currently only needs filename
+        results.push(path.relative(INVOICE_DIR, fullPath));
       }
     });
     return results;
@@ -43,33 +44,63 @@ async function analyzeAliExpressInvoices() {
 
   console.log(`🔍 Analysiere ${pdfFiles.length} heruntergeladene Rechnungen...`);
 
-  let ledger = {};
+  // Build unified lookup map from ledger.json and account_scan_summary.json
+  const ledgerMap = {};
   if (fs.existsSync(LEDGER_FILE)) {
     try {
-      ledger = JSON.parse(fs.readFileSync(LEDGER_FILE, 'utf8'));
+      const raw = JSON.parse(fs.readFileSync(LEDGER_FILE, 'utf8'));
+      if (Array.isArray(raw)) {
+        raw.forEach(item => { if (item.orderId || item.id) ledgerMap[String(item.orderId || item.id)] = item; });
+      } else if (raw && typeof raw === 'object') {
+        Object.entries(raw).forEach(([k, v]) => { ledgerMap[String(k)] = v; });
+      }
+    } catch (e) {}
+  }
+
+  if (fs.existsSync(SCAN_SUMMARY_FILE)) {
+    try {
+      const scanSummary = JSON.parse(fs.readFileSync(SCAN_SUMMARY_FILE, 'utf8'));
+      if (scanSummary.years) {
+        Object.values(scanSummary.years).forEach(y => {
+          if (Array.isArray(y.orders)) {
+            y.orders.forEach(o => {
+              if (o.orderId && !ledgerMap[String(o.orderId)]) {
+                ledgerMap[String(o.orderId)] = o;
+              }
+            });
+          }
+        });
+      }
     } catch (e) {}
   }
 
   const items = [];
 
-  for (const filename of pdfFiles) {
+  for (const relPath of pdfFiles) {
+    const filename = path.basename(relPath);
     // Format: AliExpress-YYYY-MM-DD-ORDERID.pdf
     const match = filename.match(/AliExpress-(\d{4}-\d{2}-\d{2})-(\d+)\.pdf/);
-    const date = match ? match[1] : 'Unbekannt';
     const orderId = match ? match[2] : filename.replace('.pdf', '');
+    const dateFromFilename = match ? match[1] : 'Unbekannt';
 
-    const record = ledger[orderId] || {};
-    const store = record.storeName || 'AliExpress Seller';
-    const gross = typeof record.totalAmount === 'number' ? record.totalAmount : 0;
+    const record = ledgerMap[orderId] || {};
+    const steuerdatum = record.orderDate || record.steuerdatum || dateFromFilename;
+    const rechnungsdatum = record.invoiceDate || record.rechnungsdatum || steuerdatum;
+    const store = record.storeName || record.seller || 'AliExpress Seller';
+    const gross = typeof record.totalAmount === 'number' ? record.totalAmount : (typeof record.brutto === 'number' ? record.brutto : 0);
     const currency = record.currency || 'EUR';
 
-    // Estimations if not itemized
+    // Itemized or estimated Netto & USt
     const net = gross > 0 ? parseFloat((gross / 1.19).toFixed(2)) : 0;
     const vat = gross > 0 ? parseFloat((gross - net).toFixed(2)) : 0;
 
     items.push({
       filename,
-      date,
+      relPath,
+      pdfPath: path.join('invoices', 'aliexpress', relPath),
+      steuerdatum,
+      rechnungsdatum,
+      date: steuerdatum,
       orderId,
       store,
       net,
@@ -79,54 +110,57 @@ async function analyzeAliExpressInvoices() {
     });
   }
 
-  // Sort chronologically ascending
-  items.sort((a, b) => a.date.localeCompare(b.date));
+  // Sort primarily by Steuerdatum ascending
+  items.sort((a, b) => (a.steuerdatum || '').localeCompare(b.steuerdatum || ''));
 
-  // Write JSON export
+  // Write JSON exports
   fs.writeFileSync(OUTPUT_JSON, JSON.stringify(items, null, 2));
+  fs.writeFileSync(LEDGER_FILE, JSON.stringify(items, null, 2));
 
   // Generate Landscape A4 PDF Table
   const doc = new PDFDocument({
     layout: 'landscape',
     size: 'A4',
-    margin: 30
+    margin: 25
   });
 
   const writeStream = fs.createWriteStream(OUTPUT_PDF);
   doc.pipe(writeStream);
 
   const PAGE_WIDTH = 841.89;
-  const MARGIN = 30;
+  const MARGIN = 25;
   const CONTENT_WIDTH = PAGE_WIDTH - (MARGIN * 2);
 
   // Header Box
-  doc.rect(MARGIN, MARGIN, CONTENT_WIDTH, 48).fill('#1E293B');
-  doc.fontSize(16).fillColor('#FFFFFF').font('Helvetica-Bold').text('AliExpress Rechnungs- & Belegsübersicht', MARGIN + 15, MARGIN + 10);
-  doc.fontSize(9).fillColor('#94A3B8').font('Helvetica').text(`Erstellt am: ${new Date().toLocaleDateString('de-DE')} | Exportierte Belege: ${items.length}`, MARGIN + 15, MARGIN + 30);
+  doc.rect(MARGIN, MARGIN, CONTENT_WIDTH, 45).fill('#1E293B');
+  doc.fontSize(15).fillColor('#FFFFFF').font('Helvetica-Bold').text('AliExpress Rechnungs- & Belegsübersicht', MARGIN + 15, MARGIN + 8);
+  doc.fontSize(8.5).fillColor('#94A3B8').font('Helvetica').text(`Erstellt am: ${new Date().toLocaleDateString('de-DE')} | Exportierte Belege: ${items.length} | Sortierung: Steuerdatum`, MARGIN + 15, MARGIN + 28);
 
   // Table Columns
   const col = {
-    nr: MARGIN + 10,
-    date: MARGIN + 40,
-    orderId: MARGIN + 125,
-    store: MARGIN + 260,
-    net: MARGIN + 490,
-    vat: MARGIN + 580,
-    gross: MARGIN + 670,
+    nr: MARGIN + 8,
+    steuerdatum: MARGIN + 35,
+    rechnungsdatum: MARGIN + 105,
+    orderId: MARGIN + 180,
+    store: MARGIN + 320,
+    net: MARGIN + 520,
+    vat: MARGIN + 600,
+    gross: MARGIN + 685,
   };
 
-  let y = MARGIN + 60;
+  let y = MARGIN + 55;
 
   const drawTableHeader = (currY) => {
     doc.rect(MARGIN, currY, CONTENT_WIDTH, 20).fill('#F1F5F9');
-    doc.fontSize(9).fillColor('#334155').font('Helvetica-Bold');
+    doc.fontSize(8.5).fillColor('#334155').font('Helvetica-Bold');
     doc.text('Nr.', col.nr, currY + 5);
-    doc.text('Datum', col.date, currY + 5);
+    doc.text('Steuerdatum', col.steuerdatum, currY + 5);
+    doc.text('Rechnungsdatum', col.rechnungsdatum, currY + 5);
     doc.text('Bestellnummer', col.orderId, currY + 5);
     doc.text('Händler / Store', col.store, currY + 5);
-    doc.text('Netto', col.net, currY + 5, { width: 75, align: 'right' });
-    doc.text('MwSt. (gesch.)', col.vat, currY + 5, { width: 75, align: 'right' });
-    doc.text('Gesamtbetrag', col.gross, currY + 5, { width: 90, align: 'right' });
+    doc.text('Netto', col.net, currY + 5, { width: 70, align: 'right' });
+    doc.text('MwSt. (19%)', col.vat, currY + 5, { width: 75, align: 'right' });
+    doc.text('Gesamtbetrag', col.gross, currY + 5, { width: 85, align: 'right' });
     return currY + 22;
   };
 
@@ -141,65 +175,68 @@ async function analyzeAliExpressInvoices() {
   items.forEach((item, index) => {
     // Check page overflow
     if (y > 520) {
-      doc.addPage({ layout: 'landscape', size: 'A4', margin: 30 });
+      doc.addPage({ layout: 'landscape', size: 'A4', margin: 25 });
       y = drawTableHeader(MARGIN);
       doc.font('Helvetica').fontSize(8);
     }
 
     if (index % 2 === 1) {
-      doc.rect(MARGIN, y, CONTENT_WIDTH, 17).fill('#F8FAFC');
+      doc.rect(MARGIN, y, CONTENT_WIDTH, 16).fill('#F8FAFC');
     }
 
     doc.fillColor('#0F172A');
     doc.text(String(index + 1), col.nr, y + 4);
-    doc.text(item.date, col.date, y + 4);
+    doc.text(item.steuerdatum, col.steuerdatum, y + 4);
+    doc.text(item.rechnungsdatum, col.rechnungsdatum, y + 4);
     doc.text(item.orderId, col.orderId, y + 4);
-    doc.text(item.store.slice(0, 35), col.store, y + 4);
-    doc.text(`${item.net.toFixed(2)} €`, col.net, y + 4, { width: 75, align: 'right' });
+    doc.text(item.store.length > 32 ? item.store.slice(0, 30) + '...' : item.store, col.store, y + 4);
+    doc.text(`${item.net.toFixed(2)} €`, col.net, y + 4, { width: 70, align: 'right' });
     doc.text(`${item.vat.toFixed(2)} €`, col.vat, y + 4, { width: 75, align: 'right' });
-    doc.text(`${item.gross.toFixed(2)} €`, col.gross, y + 4, { width: 90, align: 'right' });
+    doc.text(`${item.gross.toFixed(2)} €`, col.gross, y + 4, { width: 85, align: 'right' });
 
     totalGross += item.gross;
     totalNet += item.net;
     totalVat += item.vat;
 
-    y += 17;
+    y += 16;
   });
 
   // Summary row
-  y += 8;
+  y += 6;
   if (y > 510) {
-    doc.addPage({ layout: 'landscape', size: 'A4', margin: 30 });
+    doc.addPage({ layout: 'landscape', size: 'A4', margin: 25 });
     y = MARGIN;
   }
 
-  doc.rect(MARGIN, y, CONTENT_WIDTH, 26).fill('#E2E8F0');
-  doc.fontSize(9).fillColor('#0F172A').font('Helvetica-Bold');
-  doc.text('GESAMTSUMME', col.date, y + 8);
-  doc.text(`${totalNet.toFixed(2)} €`, col.net, y + 8, { width: 75, align: 'right' });
-  doc.text(`${totalVat.toFixed(2)} €`, col.vat, y + 8, { width: 75, align: 'right' });
-  doc.text(`${totalGross.toFixed(2)} €`, col.gross, y + 8, { width: 90, align: 'right' });
+  doc.rect(MARGIN, y, CONTENT_WIDTH, 24).fill('#E2E8F0');
+  doc.fontSize(8.5).fillColor('#0F172A').font('Helvetica-Bold');
+  doc.text('GESAMTSUMME', col.steuerdatum, y + 7);
+  doc.text(`${totalNet.toFixed(2)} €`, col.net, y + 7, { width: 70, align: 'right' });
+  doc.text(`${totalVat.toFixed(2)} €`, col.vat, y + 7, { width: 75, align: 'right' });
+  doc.text(`${totalGross.toFixed(2)} €`, col.gross, y + 7, { width: 85, align: 'right' });
 
   doc.end();
 
   await new Promise((resolve) => writeStream.on('finish', resolve));
 
-  // Export CSV
+  // Export CSV (German format with Steuerdatum and Rechnungsdatum)
   const csvFile = path.join(INVOICE_DIR, 'aliexpress_ledger.csv');
-  const csvHeaders = ['Nr', 'Datum', 'Bestellnummer', 'Shop', 'Netto (EUR)', 'USt (EUR)', 'Brutto (EUR)', 'Steuersatz'];
+  const csvHeaders = ['Nr', 'Steuerdatum', 'Rechnungsdatum', 'Bestellnummer', 'Shop', 'Netto (EUR)', 'USt (EUR)', 'Brutto (EUR)', 'Steuersatz', 'PDF-Datei'];
   const csvRows = items.map((r, i) => [
     i + 1,
-    `"${r.date}"`,
+    `"${r.steuerdatum}"`,
+    `"${r.rechnungsdatum}"`,
     `"${r.orderId}"`,
     `"${(r.store || '').replace(/"/g, '""')}"`,
     (r.net || 0).toFixed(2).replace('.', ','),
     (r.vat || 0).toFixed(2).replace('.', ','),
     (r.gross || 0).toFixed(2).replace('.', ','),
-    '"19%"'
+    '"19%"',
+    `"${r.pdfPath}"`
   ]);
   fs.writeFileSync(csvFile, '\ufeff' + [csvHeaders.join(';'), ...csvRows.map(row => row.join(';'))].join('\n'), 'utf8');
 
-  // Export HTML
+  // Export HTML (Clean table with Steuerdatum and Rechnungsdatum)
   const htmlFile = path.join(INVOICE_DIR, 'aliexpress_ledger.html');
   let html = `<!DOCTYPE html>
 <html>
@@ -226,7 +263,8 @@ async function analyzeAliExpressInvoices() {
     <thead>
       <tr>
         <th>Nr.</th>
-        <th>Datum</th>
+        <th>Steuerdatum</th>
+        <th>Rechnungsdatum</th>
         <th>Bestellnummer</th>
         <th>Shop</th>
         <th class="text-right">Netto (€)</th>
@@ -241,7 +279,8 @@ async function analyzeAliExpressInvoices() {
     html += `
     <tr>
       <td>${i + 1}</td>
-      <td>${r.date}</td>
+      <td>${r.steuerdatum}</td>
+      <td>${r.rechnungsdatum}</td>
       <td>${r.orderId}</td>
       <td>${r.store}</td>
       <td class="text-right">${(r.net || 0).toFixed(2).replace('.', ',')}</td>
@@ -253,7 +292,7 @@ async function analyzeAliExpressInvoices() {
 
   html += `
     <tr class="totals">
-      <td colspan="4">GESAMTSUMME</td>
+      <td colspan="5">GESAMTSUMME</td>
       <td class="text-right">${totalNet.toFixed(2).replace('.', ',')}</td>
       <td class="text-right">${totalVat.toFixed(2).replace('.', ',')}</td>
       <td class="text-right">${totalGross.toFixed(2).replace('.', ',')}</td>
@@ -271,7 +310,9 @@ async function analyzeAliExpressInvoices() {
   try {
     const { exportServiceExcel } = require('../../utils/excel-exporter');
     const formattedRecords = items.map(it => ({
-      date: it.date,
+      steuerdatum: it.steuerdatum,
+      rechnungsdatum: it.rechnungsdatum,
+      date: it.steuerdatum,
       orderId: it.orderId,
       seller: it.store,
       netto: it.net,

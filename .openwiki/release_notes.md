@@ -4,6 +4,20 @@ All notable changes to **BDB Invoice & Receipt Suite** are documented in this fi
 
 ---
 
+## [1.5.7] - 2026-08-07
+
+### 🚀 Added & Fixed
+- **Instant Excel Grand Totals (Google Sheets / OpenCalc / Excel)**:
+  - Ensured cell objects with formulas in `.xls` (BIFF8) and `.xlsx` store both the pre-calculated numeric value and the `=SUM(...)` formula.
+  - Fixes missing or blank total sums when importing `.xls` files into Google Sheets and OpenCalc.
+  - Sheet 1 (Alle Belege), Sheet 2 (Monatsübersicht), and Sheet 3 (Dienste) now render immediate totals without requiring manual calculation.
+- **Steuerdatum & Rechnungsdatum Distinction across all Services & Exports**:
+  - Implemented explicit two-column date separation (`Steuerdatum` & `Rechnungsdatum`) for AliExpress, Amazon, Uber, and Master reports.
+  - AliExpress analyzer now tracks order tax date (`steuerdatum`) and document date (`rechnungsdatum`) in PDF tables, CSV, HTML, JSON, `.xls`, and `.xlsx`.
+  - Master report consolidates both date fields across all services for tax-compliant accounting.
+
+---
+
 ## [1.5.6] - 2026-08-07
 
 ### 🚀 Added & Optimized
