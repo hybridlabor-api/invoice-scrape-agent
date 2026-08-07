@@ -31,7 +31,7 @@ async function handleServiceMenu(serviceId) {
           { name: '⬇️  Alle Rechnungen herunterladen (Komplettes Konto)', value: 'download_all' },
           { name: '📅 Bestimmtes Jahr herunterladen (z.B. 2025, 2026)', value: 'download_year' },
           { name: '📆 Benutzerdefinierten Zeitraum herunterladen', value: 'download_range' },
-          { name: '📊 Dienst-Auswertung erstellen (PDF, CSV, HTML)', value: 'analyze' },
+          { name: '📊 Dienst-Auswertung erstellen (PDF, Excel XLS/XLSX, CSV, HTML)', value: 'analyze' },
           { name: '🔑 Login / Re-Authentifizierung', value: 'auth' },
           new inquirer.Separator(),
           { name: '🔙 Zurück zum Hauptmenü', value: 'back' }
@@ -275,7 +275,7 @@ async function main() {
           new inquirer.Separator(),
           { name: '📧 E-Mail Rechnungs-Scraper (IMAP)', value: 'email_menu' },
           new inquirer.Separator(),
-          { name: '🌟 Gesamtabrechnung aller Dienste erstellen (Master PDF, CSV, HTML)', value: 'master_report' },
+          { name: '🌟 Gesamtabrechnung aller Dienste erstellen (Master PDF, Excel XLS/XLSX, CSV, HTML)', value: 'master_report' },
           new inquirer.Separator('--- Aktionen ---'),
           { name: '🤖 Neuen Web-Scraper generieren (Dojo AI)', value: 'scaffold' },
           { name: '💻 GUI Modus starten (Electron)', value: 'start_gui' },

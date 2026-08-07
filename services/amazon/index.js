@@ -340,7 +340,7 @@ class AmazonService extends BaseService {
     doc.end();
     await new Promise(resolve => stream.on('finish', resolve));
 
-    // Export CSV
+    // Export CSV (Optimized for German Excel / OpenCalc with comma decimals)
     const csvFile = path.join(this.invoicesDir, 'amazon_ledger.csv');
     const csvHeaders = ['Nr', 'Datum', 'Bestellnummer', 'Händler', 'Netto (EUR)', 'USt (EUR)', 'Brutto (EUR)', 'Steuersatz', 'PDF-Datei'];
     const csvRows = sorted.map((r, i) => [
@@ -348,9 +348,9 @@ class AmazonService extends BaseService {
       `"${r.date || '-'}"`,
       `"${r.orderId || '-'}"`,
       `"${(r.seller || 'Amazon EU S.a.r.l.').replace(/"/g, '""')}"`,
-      (r.netto || 0).toFixed(2),
-      (r.ust || 0).toFixed(2),
-      (r.brutto || 0).toFixed(2),
+      (r.netto || 0).toFixed(2).replace('.', ','),
+      (r.ust || 0).toFixed(2).replace('.', ','),
+      (r.brutto || 0).toFixed(2).replace('.', ','),
       `"${r.taxRate || '19%'}"`,
       `"${r.pdfPath || ''}"`
     ]);
@@ -423,11 +423,27 @@ class AmazonService extends BaseService {
 </html>`;
     fs.writeFileSync(htmlFile, html, 'utf8');
 
-    console.log(`✅ [Amazon] PDF Summary generated: ${outputFile}`);
-    console.log(`✅ [Amazon] CSV Ledger generated:  ${csvFile}`);
-    console.log(`✅ [Amazon] HTML Ledger generated: ${htmlFile}`);
+    // Export XLS & XLSX
+    let excelFiles = null;
+    try {
+      const { exportServiceExcel } = require('../../utils/excel-exporter');
+      excelFiles = await exportServiceExcel({
+        serviceName: 'Amazon',
+        title: 'Amazon Rechnungsübersicht',
+        invoicesDir: this.invoicesDir,
+        records: sorted
+      });
+    } catch (err) {
+      console.warn(`[Amazon] Warning generating Excel:`, err.message);
+    }
 
-    return { count: sorted.length, totalBrutto, totalNetto, totalUst, pdfFile: outputFile, csvFile, htmlFile };
+    console.log(`✅ [Amazon] PDF Summary generated:   ${outputFile}`);
+    console.log(`✅ [Amazon] Excel XLS generated:     ${excelFiles?.xlsPath || path.join(this.invoicesDir, 'amazon_ledger.xls')}`);
+    console.log(`✅ [Amazon] Excel XLSX generated:    ${excelFiles?.xlsxPath || path.join(this.invoicesDir, 'amazon_ledger.xlsx')}`);
+    console.log(`✅ [Amazon] CSV Ledger generated:    ${csvFile}`);
+    console.log(`✅ [Amazon] HTML Ledger generated:   ${htmlFile}`);
+
+    return { count: sorted.length, totalBrutto, totalNetto, totalUst, pdfFile: outputFile, xlsFile: excelFiles?.xlsPath, xlsxFile: excelFiles?.xlsxPath, csvFile, htmlFile };
   }
 }
 

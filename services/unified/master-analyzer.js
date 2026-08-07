@@ -110,9 +110,9 @@ class MasterAnalyzer {
       `"${r.invoiceDate}"`,
       `"${r.invoiceNumber || r.orderId}"`,
       `"${(r.seller || '').replace(/"/g, '""')}"`,
-      r.netto.toFixed(2),
-      r.ust.toFixed(2),
-      r.brutto.toFixed(2),
+      (r.netto || 0).toFixed(2).replace('.', ','),
+      (r.ust || 0).toFixed(2).replace('.', ','),
+      (r.brutto || 0).toFixed(2).replace('.', ','),
       `"${r.taxRate}"`,
       `"${r.pdfPath || ''}"`
     ]);
@@ -318,8 +318,23 @@ class MasterAnalyzer {
     doc.end();
     await new Promise(resolve => stream.on('finish', resolve));
 
+    // Export Master XLS & XLSX
+    let excelFiles = null;
+    try {
+      const { exportMasterExcel } = require('../../utils/excel-exporter');
+      excelFiles = await exportMasterExcel({
+        invoicesDir: this.invoicesDir,
+        records: records,
+        metrics
+      });
+    } catch (err) {
+      console.warn('[MasterAnalyzer] Warning exporting Excel:', err.message);
+    }
+
     console.log(`\n🎉 [MasterAnalyzer] Master Report Ready:`);
     console.log(`   📄 PDF:  ${this.outputPdf}`);
+    console.log(`   📊 XLS:  ${excelFiles?.xlsPath || path.join(this.invoicesDir, 'master_ledger.xls')}`);
+    console.log(`   📊 XLSX: ${excelFiles?.xlsxPath || path.join(this.invoicesDir, 'master_ledger.xlsx')}`);
     console.log(`   📊 CSV:  ${this.outputCsv}`);
     console.log(`   🌐 HTML: ${path.join(this.invoicesDir, 'master_ledger.html')} (Perfect for Excel copy-paste!)`);
     console.log(`   📦 JSON: ${this.outputJson}\n`);
@@ -327,6 +342,8 @@ class MasterAnalyzer {
     return {
       success: true,
       pdfFile: this.outputPdf,
+      xlsFile: excelFiles?.xlsPath,
+      xlsxFile: excelFiles?.xlsxPath,
       csvFile: this.outputCsv,
       jsonFile: this.outputJson,
       metrics

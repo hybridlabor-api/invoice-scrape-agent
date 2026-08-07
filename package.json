@@ -1,6 +1,6 @@
 {
   "name": "invoice-scrape-agent",
-  "version": "1.5.5",
+  "version": "1.5.6",
   "description": "BDB Multi-Service Invoice & Tax Suite: Autonomous, cross-platform Uber & AliExpress tax invoice fetcher, receipt PNG-to-PDF normalizer, and PDF accounting analyzer",
   "main": "index.js",
   "bin": {
@@ -75,15 +75,16 @@
   "dependencies": {
     "@google/genai": "^2.16.0",
     "dotenv": "^16.6.1",
+    "electron": "^43.3.0",
+    "exceljs": "^4.4.0",
     "imapflow": "^1.6.5",
     "inquirer": "^9.2.12",
     "mailparser": "^3.9.14",
     "pdf-parse": "^1.1.4",
     "pdfkit": "^0.14.0",
     "playwright": "^1.62.1",
-    "electron": "^43.3.0"
+    "xlsx": "^0.18.5"
   },
-  "devDependencies": {},
   "engines": {
     "node": ">= 22.12.0"
   }

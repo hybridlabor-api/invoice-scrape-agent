@@ -244,9 +244,9 @@ async function run() {
         `"${r.rechnungsdatum || '-'}"`,
         `"${r.invoiceNumber || '-'}"`,
         `"${(r.seller || '').replace(/"/g, '""')}"`,
-        (r.netto || 0).toFixed(2),
-        (r.ust || 0).toFixed(2),
-        (r.brutto || 0).toFixed(2),
+        (r.netto || 0).toFixed(2).replace('.', ','),
+        (r.ust || 0).toFixed(2).replace('.', ','),
+        (r.brutto || 0).toFixed(2).replace('.', ','),
         `"${r.taxRate || '19%'}"`,
         `"${r.pdfPath || ''}"`
     ]);
@@ -321,11 +321,27 @@ async function run() {
 </html>`;
     fs.writeFileSync(htmlFile, html, 'utf8');
 
+    // Export XLS & XLSX
+    let excelFiles = null;
+    try {
+      const { exportServiceExcel } = require('../../utils/excel-exporter');
+      excelFiles = await exportServiceExcel({
+        serviceName: 'Uber',
+        title: 'Uber Rechnungsübersicht',
+        invoicesDir: INVOICE_DIR,
+        records: ledger
+      });
+    } catch (err) {
+      console.warn('[Uber] Warning exporting Excel:', err.message);
+    }
+
     console.log(`✅ Gesamtauflistung erstellt: ${OUTPUT_FILE}`);
+    console.log(`✅ Excel XLS erstellt:        ${excelFiles?.xlsPath || path.join(INVOICE_DIR, 'uber_ledger.xls')}`);
+    console.log(`✅ Excel XLSX erstellt:       ${excelFiles?.xlsxPath || path.join(INVOICE_DIR, 'uber_ledger.xlsx')}`);
     console.log(`✅ CSV Ledger erstellt:       ${csvFile}`);
     console.log(`✅ HTML Ledger erstellt:      ${htmlFile}`);
     console.log(`✅ JSON Ledger erstellt:      ${LEDGER_FILE}`);
-    return { success: true, file: OUTPUT_FILE, csvFile, htmlFile, count: invoices.length, totalBrutto };
+    return { success: true, file: OUTPUT_FILE, xlsFile: excelFiles?.xlsPath, xlsxFile: excelFiles?.xlsxPath, csvFile, htmlFile, count: invoices.length, totalBrutto };
 }
 
 if (require.main === module) {

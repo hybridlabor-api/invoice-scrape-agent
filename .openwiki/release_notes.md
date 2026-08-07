@@ -4,6 +4,22 @@ All notable changes to **BDB Invoice & Receipt Suite** are documented in this fi
 
 ---
 
+## [1.5.6] - 2026-08-07
+
+### 🚀 Added & Optimized
+- **Native Binary Excel (`.xls` BIFF8) & `.xlsx` Export Suite**:
+  - Implemented multi-sheet Excel generator using SheetJS across ALL services (Amazon, Uber, AliExpress, Master Analyzer).
+  - **Sheet 1 („Alle Belege“)**: Detailed ledger with raw numeric values, auto-adjusted column widths, currency formats (`#,##0.00`), and dynamic sum formulas (`=SUM(...)`).
+  - **Sheet 2 („Monatsübersicht“)**: Automated monthly grouping (`YYYY-MM`) with invoice counts, Netto, USt, Brutto totals and consolidated sum formula.
+  - **Sheet 3 („Dienste“)**: Platform-by-platform breakdown in Master report.
+  - Generates both classic binary `.xls` (100% native in OpenCalc / LibreOffice / Google Sheets / Excel 97-2004) and modern `.xlsx`.
+- **German CSV Format Compatibility**:
+  - Exported CSVs now use semicolons and German decimal commas (e.g., `8,36` instead of `8.36`), enabling immediate numerical recognition and math operations in OpenCalc and German spreadsheet locales.
+- **Robust Ledger Parsing**:
+  - `BaseService.loadLedger()` safely parses both JSON array and dictionary object structures across past legacy extractions.
+
+---
+
 ## [1.4.16] - 2026-08-07
 
 ### 🚀 Added

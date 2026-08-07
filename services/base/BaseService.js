@@ -55,7 +55,10 @@ class BaseService {
     try {
       if (fs.existsSync(this.ledgerFile)) {
         const raw = fs.readFileSync(this.ledgerFile, 'utf8');
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+        if (parsed && typeof parsed === 'object') return Object.values(parsed);
+        return [];
       }
     } catch (e) {
       console.warn(`[${this.id}] Warning loading ledger:`, e.message);

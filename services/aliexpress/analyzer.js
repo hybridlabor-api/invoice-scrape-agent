@@ -192,9 +192,9 @@ async function analyzeAliExpressInvoices() {
     `"${r.date}"`,
     `"${r.orderId}"`,
     `"${(r.store || '').replace(/"/g, '""')}"`,
-    r.net.toFixed(2),
-    r.vat.toFixed(2),
-    r.gross.toFixed(2),
+    (r.net || 0).toFixed(2).replace('.', ','),
+    (r.vat || 0).toFixed(2).replace('.', ','),
+    (r.gross || 0).toFixed(2).replace('.', ','),
     '"19%"'
   ]);
   fs.writeFileSync(csvFile, '\ufeff' + [csvHeaders.join(';'), ...csvRows.map(row => row.join(';'))].join('\n'), 'utf8');
@@ -244,9 +244,9 @@ async function analyzeAliExpressInvoices() {
       <td>${r.date}</td>
       <td>${r.orderId}</td>
       <td>${r.store}</td>
-      <td class="text-right">${r.net.toFixed(2).replace('.', ',')}</td>
-      <td class="text-right">${r.vat.toFixed(2).replace('.', ',')}</td>
-      <td class="text-right">${r.gross.toFixed(2).replace('.', ',')}</td>
+      <td class="text-right">${(r.net || 0).toFixed(2).replace('.', ',')}</td>
+      <td class="text-right">${(r.vat || 0).toFixed(2).replace('.', ',')}</td>
+      <td class="text-right">${(r.gross || 0).toFixed(2).replace('.', ',')}</td>
       <td>19%</td>
     </tr>`;
   });
@@ -266,8 +266,35 @@ async function analyzeAliExpressInvoices() {
 </html>`;
   fs.writeFileSync(htmlFile, html, 'utf8');
 
+  // Export XLS & XLSX
+  let excelFiles = null;
+  try {
+    const { exportServiceExcel } = require('../../utils/excel-exporter');
+    const formattedRecords = items.map(it => ({
+      date: it.date,
+      orderId: it.orderId,
+      seller: it.store,
+      netto: it.net,
+      ust: it.vat,
+      brutto: it.gross,
+      taxRate: '19%',
+      pdfPath: it.pdfPath || ''
+    }));
+
+    excelFiles = await exportServiceExcel({
+      serviceName: 'AliExpress',
+      title: 'AliExpress Rechnungsübersicht',
+      invoicesDir: INVOICE_DIR,
+      records: formattedRecords
+    });
+  } catch (err) {
+    console.warn('[AliExpress] Warning exporting Excel:', err.message);
+  }
+
   console.log(`\n✅ Auswertungen erfolgreich generiert:`);
   console.log(`   📄 PDF:  ${OUTPUT_PDF}`);
+  console.log(`   📊 XLS:  ${excelFiles?.xlsPath || path.join(INVOICE_DIR, 'aliexpress_ledger.xls')}`);
+  console.log(`   📊 XLSX: ${excelFiles?.xlsxPath || path.join(INVOICE_DIR, 'aliexpress_ledger.xlsx')}`);
   console.log(`   📊 CSV:  ${csvFile}`);
   console.log(`   🌐 HTML: ${htmlFile}`);
   console.log(`   📦 JSON: ${OUTPUT_JSON}`);
