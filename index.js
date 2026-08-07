@@ -330,9 +330,11 @@ async function main() {
     } else if (selected === 'start_gui') {
       const { spawn } = require('child_process');
       console.log("\n🚀 Starte BDB Invoice Suite GUI...\n");
-      // Execute the npm script for start:gui or the local executable directly
-      const guiProcess = spawn('npx', ['electron', path.join(__dirname, 'electron', 'main.js')], {
-        stdio: 'inherit',
+      const isWin = process.platform === 'win32';
+      const npxCmd = isWin ? 'npx.cmd' : 'npx';
+      
+      const guiProcess = spawn(npxCmd, ['--yes', 'electron', path.join(__dirname, 'electron', 'main.js')], {
+        stdio: 'ignore',
         detached: true
       });
       guiProcess.unref();

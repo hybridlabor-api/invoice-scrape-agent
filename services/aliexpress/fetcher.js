@@ -187,7 +187,7 @@ async function startAliExpressFetcher() {
 
       const initialUrl = 'https://www.aliexpress.com/p/order/index.html';
       await page.goto(initialUrl, { waitUntil: 'networkidle', timeout: 30000 }).catch(() => {});
-      await page.waitForTimeout(2500);
+      await page.waitForTimeout(2500).catch(() => {});
 
       if (page.url().includes('login') || page.url().includes('passport')) {
         console.error("\n❌ FEHLER: Login abgelaufen! Bitte führe den Login erneut aus.");
