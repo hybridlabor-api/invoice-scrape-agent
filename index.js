@@ -369,14 +369,28 @@ async function main() {
       console.log("======================================================");
       console.log("   🔄 Update auf neueste Version wird ausgeführt...    ");
       console.log("======================================================\n");
-      try {
-        console.log("Führe 'npm install -g invoice-scrape-agent@latest' aus...\n");
-        execSync('npm install -g invoice-scrape-agent@latest', { stdio: 'inherit' });
-        console.log("\n✅ Update erfolgreich! Bitte starte das Programm neu.");
-      } catch (e) {
-        console.error("\n❌ Fehler beim Update:", e.message);
+      
+      const isWin = process.platform === 'win32';
+      if (isWin) {
+        console.log("Windows-Sicherheitssperre: Starte Update in separatem Fenster...\n");
+        const cp = require('child_process');
+        const updateCmd = 'echo ====================================================== & echo   BDB Invoice Suite - Auto-Updater & echo ====================================================== & echo. & echo Schliesse alte Prozesse und lade neueste Version... & timeout /t 2 /nobreak >nul & npm install -g invoice-scrape-agent@latest & echo. & echo ====================================================== & echo   Update erfolgreich! Druecke ENTER zum Starten. & echo ====================================================== & pause & invoice-scrape-agent';
+        cp.spawn('cmd.exe', ['/c', 'start', 'BDB-Invoice-Updater', 'cmd.exe', '/k', updateCmd], {
+          detached: true,
+          stdio: 'ignore'
+        }).unref();
+        console.log("✅ Update-Fenster geöffnet. Diese CLI beendet sich nun sauber.");
+        process.exit(0);
+      } else {
+        try {
+          console.log("Führe 'npm install -g invoice-scrape-agent@latest' aus...\n");
+          execSync('npm install -g invoice-scrape-agent@latest', { stdio: 'inherit' });
+          console.log("\n✅ Update erfolgreich! Bitte starte das Programm neu.");
+        } catch (e) {
+          console.error("\n❌ Fehler beim Update:", e.message);
+        }
+        await waitPrompt();
       }
-      await waitPrompt();
     } else {
       await handleServiceMenu(selected);
     }
