@@ -1,6 +1,6 @@
 {
   "name": "@hybridlabor-api/bdb-dev-uber-recipe-wrapper",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Autonomous, cross-platform Uber tax invoice fetcher, batch downloader, and PDF accounting analyzer",
   "main": "index.js",
   "bin": {
