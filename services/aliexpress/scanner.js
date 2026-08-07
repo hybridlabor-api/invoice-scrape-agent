@@ -132,30 +132,30 @@ async function scanAliExpressAccount() {
     let pass = 1;
     let keepScanning = true;
     let consecutiveUnchanged = 0;
-    const maxPasses = 100; // Scan up to 100 batches (covers hundreds of orders)
+    const maxPasses = 150; // Scan up to 150 clicks
 
     while (keepScanning && pass <= maxPasses) {
-      // 1. Target the exact 'View orders' button without scrolling into 'More to love'
+      // 1. Locate the exact 'View orders' button
       const viewMoreBtn = page.locator('button, [role="button"], div, span, a').filter({
         hasText: /^View orders|^View more orders|^Mehr anzeigen/i
       }).first();
 
-      let clicked = false;
-      if (await viewMoreBtn.count() > 0 && await viewMoreBtn.isVisible().catch(() => false)) {
+      const btnExists = await viewMoreBtn.count() > 0 && await viewMoreBtn.isVisible().catch(() => false);
+
+      if (btnExists) {
         try {
           await viewMoreBtn.scrollIntoViewIfNeeded();
-          await page.waitForTimeout(500);
+          await page.waitForTimeout(400);
           await viewMoreBtn.click();
           await page.waitForTimeout(2000);
-          clicked = true;
         } catch (e) {}
       } else {
-        // Scroll incrementally to make the button visible if higher up
+        // Scroll down slightly in case the button is just below the visible fold
         await page.evaluate(() => window.scrollBy(0, 600));
         await page.waitForTimeout(1000);
       }
 
-      // DOM fallback extraction
+      // 2. DOM extraction
       const domOrders = await page.evaluate(() => {
         const results = [];
         const cards = document.querySelectorAll('[class*="order-item"], [class*="order-card"], [class*="order-main"]');
@@ -196,22 +196,17 @@ async function scanAliExpressAccount() {
         }
       }
 
-      process.stdout.write(`\r🔄 Lade Bestellhistorie nach... (${collectedOrders.size} Bestellungen erfasst)`);
+      process.stdout.write(`\r🔄 Klick ${pass}: ${collectedOrders.size} Bestellungen erfasst...`);
 
-      if (collectedOrders.size === beforeCount) {
+      if (collectedOrders.size === beforeCount && !btnExists) {
         consecutiveUnchanged++;
         if (consecutiveUnchanged >= 3) {
           keepScanning = false;
-        } else {
-          // Secondary fallback: page navigation if infinite scroll stops
-          pass++;
-          await page.goto(`https://www.aliexpress.com/p/order/index.html?page=${pass}`, { waitUntil: 'networkidle', timeout: 20000 }).catch(() => {});
-          await page.waitForTimeout(2000);
         }
       } else {
         consecutiveUnchanged = 0;
-        pass++;
       }
+      pass++;
     }
 
     console.log("\n");
