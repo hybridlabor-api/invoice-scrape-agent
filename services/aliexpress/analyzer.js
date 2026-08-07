@@ -184,9 +184,93 @@ async function analyzeAliExpressInvoices() {
 
   await new Promise((resolve) => writeStream.on('finish', resolve));
 
-  console.log(`\n✅ PDF-Gesamtauflistung erfolgreich generiert:`);
-  console.log(`   📄 ${OUTPUT_PDF}`);
-  console.log(`   📊 ${OUTPUT_JSON}`);
+  // Export CSV
+  const csvFile = path.join(INVOICE_DIR, 'aliexpress_ledger.csv');
+  const csvHeaders = ['Nr', 'Datum', 'Bestellnummer', 'Shop', 'Netto (EUR)', 'USt (EUR)', 'Brutto (EUR)', 'Steuersatz'];
+  const csvRows = items.map((r, i) => [
+    i + 1,
+    `"${r.date}"`,
+    `"${r.orderId}"`,
+    `"${(r.store || '').replace(/"/g, '""')}"`,
+    r.net.toFixed(2),
+    r.vat.toFixed(2),
+    r.gross.toFixed(2),
+    '"19%"'
+  ]);
+  fs.writeFileSync(csvFile, '\ufeff' + [csvHeaders.join(';'), ...csvRows.map(row => row.join(';'))].join('\n'), 'utf8');
+
+  // Export HTML
+  const htmlFile = path.join(INVOICE_DIR, 'aliexpress_ledger.html');
+  let html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>AliExpress Rechnungsübersicht</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 24px; color: #1e293b; background-color: #f8fafc; }
+  .card { background: white; padding: 24px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+  h2 { color: #e11d48; margin-top: 0; }
+  table { border-collapse: collapse; width: 100%; margin-top: 16px; font-size: 13px; }
+  th, td { border: 1px solid #e2e8f0; padding: 10px 14px; text-align: left; }
+  th { background-color: #e11d48; color: white; font-weight: 600; }
+  tr:nth-child(even) { background-color: #f1f5f9; }
+  .totals { font-weight: bold; background-color: #ffe4e6; color: #881337; }
+  .text-right { text-align: right; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>🛍️ AliExpress Rechnungsübersicht</h2>
+  <p><strong>Erstellt am:</strong> ${new Date().toLocaleDateString('de-DE')} | <strong>Rechnungen:</strong> ${items.length}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Nr.</th>
+        <th>Datum</th>
+        <th>Bestellnummer</th>
+        <th>Shop</th>
+        <th class="text-right">Netto (€)</th>
+        <th class="text-right">USt (€)</th>
+        <th class="text-right">Brutto (€)</th>
+        <th>Steuersatz</th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+  items.forEach((r, i) => {
+    html += `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${r.date}</td>
+      <td>${r.orderId}</td>
+      <td>${r.store}</td>
+      <td class="text-right">${r.net.toFixed(2).replace('.', ',')}</td>
+      <td class="text-right">${r.vat.toFixed(2).replace('.', ',')}</td>
+      <td class="text-right">${r.gross.toFixed(2).replace('.', ',')}</td>
+      <td>19%</td>
+    </tr>`;
+  });
+
+  html += `
+    <tr class="totals">
+      <td colspan="4">GESAMTSUMME</td>
+      <td class="text-right">${totalNet.toFixed(2).replace('.', ',')}</td>
+      <td class="text-right">${totalVat.toFixed(2).replace('.', ',')}</td>
+      <td class="text-right">${totalGross.toFixed(2).replace('.', ',')}</td>
+      <td>-</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+</body>
+</html>`;
+  fs.writeFileSync(htmlFile, html, 'utf8');
+
+  console.log(`\n✅ Auswertungen erfolgreich generiert:`);
+  console.log(`   📄 PDF:  ${OUTPUT_PDF}`);
+  console.log(`   📊 CSV:  ${csvFile}`);
+  console.log(`   🌐 HTML: ${htmlFile}`);
+  console.log(`   📦 JSON: ${OUTPUT_JSON}`);
   console.log(`\n💰 Gesamtsumme: ${totalGross.toFixed(2)} € (${items.length} Belege)\n`);
 }
 

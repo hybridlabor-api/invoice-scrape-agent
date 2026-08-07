@@ -340,8 +340,94 @@ class AmazonService extends BaseService {
     doc.end();
     await new Promise(resolve => stream.on('finish', resolve));
 
+    // Export CSV
+    const csvFile = path.join(this.invoicesDir, 'amazon_ledger.csv');
+    const csvHeaders = ['Nr', 'Datum', 'Bestellnummer', 'Händler', 'Netto (EUR)', 'USt (EUR)', 'Brutto (EUR)', 'Steuersatz', 'PDF-Datei'];
+    const csvRows = sorted.map((r, i) => [
+      i + 1,
+      `"${r.date || '-'}"`,
+      `"${r.orderId || '-'}"`,
+      `"${(r.seller || 'Amazon EU S.a.r.l.').replace(/"/g, '""')}"`,
+      (r.netto || 0).toFixed(2),
+      (r.ust || 0).toFixed(2),
+      (r.brutto || 0).toFixed(2),
+      `"${r.taxRate || '19%'}"`,
+      `"${r.pdfPath || ''}"`
+    ]);
+    fs.writeFileSync(csvFile, '\ufeff' + [csvHeaders.join(';'), ...csvRows.map(row => row.join(';'))].join('\n'), 'utf8');
+
+    // Export HTML (Formatted table for Excel copy/paste)
+    const htmlFile = path.join(this.invoicesDir, 'amazon_ledger.html');
+    let html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Amazon Rechnungsübersicht</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 24px; color: #1e293b; background-color: #f8fafc; }
+  .card { background: white; padding: 24px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+  h2 { color: #0f172a; margin-top: 0; }
+  table { border-collapse: collapse; width: 100%; margin-top: 16px; font-size: 13px; }
+  th, td { border: 1px solid #e2e8f0; padding: 10px 14px; text-align: left; }
+  th { background-color: #232f3e; color: white; font-weight: 600; }
+  tr:nth-child(even) { background-color: #f1f5f9; }
+  .totals { font-weight: bold; background-color: #ff9900; color: #111; }
+  .text-right { text-align: right; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>📦 Amazon Rechnungsübersicht</h2>
+  <p><strong>Erstellt am:</strong> ${new Date().toLocaleDateString('de-DE')} | <strong>Rechnungen:</strong> ${sorted.length}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Nr.</th>
+        <th>Datum</th>
+        <th>Bestellnummer</th>
+        <th>Händler</th>
+        <th class="text-right">Netto (€)</th>
+        <th class="text-right">USt (€)</th>
+        <th class="text-right">Brutto (€)</th>
+        <th>Steuersatz</th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+    sorted.forEach((r, i) => {
+      html += `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${r.date || '-'}</td>
+        <td>${r.orderId || '-'}</td>
+        <td>${r.seller || 'Amazon EU S.a.r.l.'}</td>
+        <td class="text-right">${(r.netto || 0).toFixed(2).replace('.', ',')}</td>
+        <td class="text-right">${(r.ust || 0).toFixed(2).replace('.', ',')}</td>
+        <td class="text-right">${(r.brutto || 0).toFixed(2).replace('.', ',')}</td>
+        <td>${r.taxRate || '19%'}</td>
+      </tr>`;
+    });
+
+    html += `
+      <tr class="totals">
+        <td colspan="4">GESAMTSUMME</td>
+        <td class="text-right">${totalNetto.toFixed(2).replace('.', ',')}</td>
+        <td class="text-right">${totalUst.toFixed(2).replace('.', ',')}</td>
+        <td class="text-right">${totalBrutto.toFixed(2).replace('.', ',')}</td>
+        <td>-</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+</body>
+</html>`;
+    fs.writeFileSync(htmlFile, html, 'utf8');
+
     console.log(`✅ [Amazon] PDF Summary generated: ${outputFile}`);
-    return { count: sorted.length, totalBrutto, totalNetto, totalUst, file: outputFile };
+    console.log(`✅ [Amazon] CSV Ledger generated:  ${csvFile}`);
+    console.log(`✅ [Amazon] HTML Ledger generated: ${htmlFile}`);
+
+    return { count: sorted.length, totalBrutto, totalNetto, totalUst, pdfFile: outputFile, csvFile, htmlFile };
   }
 }
 
