@@ -155,17 +155,30 @@ async function run(isScan = false, startDate = null, endDate = null) {
 }
 
 function scanMode(activities) {
-    console.log('--- SCAN MODE ---');
-
     const parsed = activities.filter(a => a._date !== null);
     parsed.sort((a, b) => a._date - b._date);
 
     if (parsed.length > 0) {
         const minDate = parsed[0]._date.toISOString().split('T')[0];
         const maxDate = parsed[parsed.length - 1]._date.toISOString().split('T')[0];
-        console.log(`Frühestes Datum: ${minDate}`);
-        console.log(`Letztes Datum:   ${maxDate}`);
-        console.log(`Fahrten gesamt:  ${activities.length}`);
+        
+        const totalAmount = parsed.reduce((sum, a) => {
+            if (!a.description) return sum;
+            const priceMatch = a.description.match(/([0-9]+[.,][0-9]{2})/);
+            if (priceMatch) {
+                return sum + parseFloat(priceMatch[1].replace(',', '.'));
+            }
+            return sum;
+        }, 0);
+
+        console.log("\n    ======================================================");
+        console.log("              📊 KONTO-ANALYSE ERGEBNIS 📊              ");
+        console.log("    ======================================================");
+        console.log(`    📦 Bestellungen gesamt:    ${activities.length}`);
+        console.log(`    📅 Älteste Bestellung:     ${minDate}`);
+        console.log(`    📅 Neueste Bestellung:     ${maxDate}`);
+        console.log(`    💰 Gesamtausgaben erfasst: ${totalAmount.toFixed(2)} €\n`);
+        
         return { success: true, earliest: minDate, latest: maxDate, totalTrips: activities.length };
     }
 

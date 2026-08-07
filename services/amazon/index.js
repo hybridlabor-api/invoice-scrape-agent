@@ -144,7 +144,18 @@ class AmazonService extends BaseService {
         }
       }
 
-      console.log(`✅ [Amazon] Scan finished: Found ${orders.length} orders in ${year}.`);
+      const oldest = orders.length > 0 ? orders[orders.length - 1].date : '-';
+      const newest = orders.length > 0 ? orders[0].date : '-';
+      const totalAmount = orders.reduce((sum, o) => sum + (parseFloat(o.brutto) || 0), 0);
+
+      console.log("\n    ======================================================");
+      console.log("              📊 KONTO-ANALYSE ERGEBNIS 📊              ");
+      console.log("    ======================================================");
+      console.log(`    📦 Bestellungen gesamt:    ${orders.length}`);
+      console.log(`    📅 Älteste Bestellung:     ${oldest}`);
+      console.log(`    📅 Neueste Bestellung:     ${newest}`);
+      console.log(`    💰 Gesamtausgaben erfasst: ${totalAmount.toFixed(2)} €\n`);
+
       return orders;
     } finally {
       await context.close();

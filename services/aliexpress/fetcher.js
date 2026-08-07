@@ -281,9 +281,17 @@ async function startAliExpressFetcher() {
     console.log(`\n✅ ${allOrders.length} Bestellungen insgesamt im Index erfasst.`);
 
     if (options.scan) {
-      console.log("\n--- SCAN-ERGEBNIS ---");
-      console.log(`Gefundene Bestellungen: ${allOrders.length}`);
-      console.log(`Zeitspanne: ${allOrders[allOrders.length - 1]?.orderDate} bis ${allOrders[0]?.orderDate}\n`);
+      const oldest = allOrders[allOrders.length - 1]?.orderDate || '-';
+      const newest = allOrders[0]?.orderDate || '-';
+      const totalAmount = allOrders.reduce((sum, o) => sum + (parseFloat(o.totalAmount) || parseFloat(o.price) || 0), 0);
+      
+      console.log("\n    ======================================================");
+      console.log("              📊 KONTO-ANALYSE ERGEBNIS 📊              ");
+      console.log("    ======================================================");
+      console.log(`    📦 Bestellungen gesamt:    ${allOrders.length}`);
+      console.log(`    📅 Älteste Bestellung:     ${oldest}`);
+      console.log(`    📅 Neueste Bestellung:     ${newest}`);
+      console.log(`    💰 Gesamtausgaben erfasst: ${totalAmount.toFixed(2)} €\n`);
       await context.close();
       return;
     }
