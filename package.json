@@ -24,7 +24,8 @@
     "fetch:aliexpress": "node services/aliexpress/fetcher.js",
     "analyze": "node index.js",
     "analyze:uber": "node services/uber/analyzer.js",
-    "analyze:aliexpress": "node services/aliexpress/analyzer.js"
+    "analyze:aliexpress": "node services/aliexpress/analyzer.js",
+    "update": "git pull origin main && npm install --no-fund --no-audit"
   },
   "files": [
     "index.js",

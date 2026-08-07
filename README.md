@@ -127,6 +127,23 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 
 ---
 
+### 🔄 How to Update / Aktualisierung
+
+#### Option A: Local Repository Update
+Um die neueste Version von GitHub zu laden und Abhängigkeiten zu aktualisieren:
+```bash
+npm run update
+# oder manuell:
+git pull origin main && npm install
+```
+
+#### Option B: Global NPM Package Update
+```bash
+npm install -g invoice-scrape-agent@latest
+```
+
+---
+
 ## 🎮 Interactive CLI Dashboard
 
 Launch the interactive dashboard:
