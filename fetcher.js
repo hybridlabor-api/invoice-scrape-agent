@@ -15,7 +15,7 @@ const monthMap = {
     'sep': 8, 'okt': 9, 'oct': 9, 'nov': 10, 'dez': 11, 'dec': 11
 };
 
-function parseSubtitleDate(subtitle) {
+function parseMonthDay(subtitle) {
     if (!subtitle) return null;
     const match = subtitle.match(/(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\.?\s*[•·]/);
     if (!match) return null;
@@ -23,12 +23,40 @@ function parseSubtitleDate(subtitle) {
     const monthStr = match[2].toLowerCase().substring(0, 3);
     const month = monthMap[monthStr];
     if (month === undefined) return null;
+    return { month, day };
+}
+
+// Activities come from API newest-first. Walk through them and track year changes.
+function assignYears(activities) {
+    const now = new Date();
+    let currentYear = now.getFullYear();
+    let lastMonth = now.getMonth();
+
+    for (const act of activities) {
+        const md = parseMonthDay(act.subtitle);
+        if (!md) { act._date = null; continue; }
+
+        // If the month jumps forward (e.g. from March to November), we crossed into the previous year
+        if (md.month > lastMonth + 1) {
+            currentYear--;
+        }
+        lastMonth = md.month;
+        act._date = new Date(Date.UTC(currentYear, md.month, md.day));
+    }
+}
+
+function parseSubtitleDate(subtitle) {
+    // Fallback for standalone use
+    if (!subtitle) return null;
+    const md = parseMonthDay(subtitle);
+    if (!md) return null;
     const now = new Date();
     let year = now.getFullYear();
-    const candidate = new Date(Date.UTC(year, month, day));
+    const candidate = new Date(Date.UTC(year, md.month, md.day));
     if (candidate > now) year--;
-    return new Date(Date.UTC(year, month, day));
+    return new Date(Date.UTC(year, md.month, md.day));
 }
+
 
 async function createContext() {
     const userDataDir = path.join(__dirname, '.auth-profile');
@@ -105,6 +133,7 @@ async function run(isScan = false, startDate = null, endDate = null) {
 
     try {
         const activities = await collectActivities(page);
+        assignYears(activities);
         console.log(`\n✅ ${activities.length} Fahrten gefunden.\n`);
 
         if (isScan) {
@@ -125,15 +154,12 @@ async function run(isScan = false, startDate = null, endDate = null) {
 function scanMode(activities) {
     console.log('--- SCAN MODE ---');
 
-    const parsed = activities
-        .map(a => ({ act: a, date: parseSubtitleDate(a.subtitle) }))
-        .filter(a => a.date !== null);
-
-    parsed.sort((a, b) => a.date - b.date);
+    const parsed = activities.filter(a => a._date !== null);
+    parsed.sort((a, b) => a._date - b._date);
 
     if (parsed.length > 0) {
-        const minDate = parsed[0].date.toISOString().split('T')[0];
-        const maxDate = parsed[parsed.length - 1].date.toISOString().split('T')[0];
+        const minDate = parsed[0]._date.toISOString().split('T')[0];
+        const maxDate = parsed[parsed.length - 1]._date.toISOString().split('T')[0];
         console.log(`Frühestes Datum: ${minDate}`);
         console.log(`Letztes Datum:   ${maxDate}`);
         console.log(`Fahrten gesamt:  ${activities.length}`);
@@ -150,9 +176,8 @@ async function downloadMode(page, activities, startDate, endDate) {
     console.log(`--- DOWNLOAD MODE (${sDate} bis ${eDate}) ---`);
 
     const matching = activities.filter(a => {
-        const d = parseSubtitleDate(a.subtitle);
-        if (!d) return false;
-        return d >= startDate && d <= endDate;
+        if (!a._date) return false;
+        return a._date >= startDate && a._date <= endDate;
     });
 
     console.log(`${matching.length} Fahrten im Zeitraum gefunden.\n`);
