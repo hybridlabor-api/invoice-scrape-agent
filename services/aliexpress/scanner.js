@@ -23,10 +23,25 @@ const monthMap = {
 
 function normalizeDate(rawDate) {
   if (!rawDate) return new Date().toISOString().slice(0, 10);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) return rawDate;
 
-  // e.g. "Aug 7, 2026", "7. Aug. 2026"
-  const m1 = rawDate.match(/([A-Za-zäöüÄÖÜ]{3,})\.?\s+(\d{1,2}),?\s+(\d{4})/);
+  if (typeof rawDate === 'number' || /^\d{10,13}$/.test(String(rawDate).trim())) {
+    const num = Number(rawDate);
+    const ts = num < 10000000000 ? num * 1000 : num;
+    const d = new Date(ts);
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+  }
+
+  const str = String(rawDate).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
+  if (/^\d{4}\.\d{2}\.\d{2}/.test(str)) return str.slice(0, 10).replace(/\./g, '-');
+
+  // e.g. "Aug 7, 2026", "7. Aug. 2026", "Aug 07 2025"
+  const m1 = str.match(/([A-Za-zäöüÄÖÜ]{3,})\.?\s+(\d{1,2}),?\s+(\d{4})/);
   if (m1) {
     const mStr = m1[1].toLowerCase().slice(0, 3);
     const mIdx = monthMap[mStr] !== undefined ? monthMap[mStr] : 0;
@@ -35,7 +50,7 @@ function normalizeDate(rawDate) {
     return `${year}-${String(mIdx + 1).padStart(2, '0')}-${day}`;
   }
 
-  const m2 = rawDate.match(/(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]{3,})\.?\s+(\d{4})/);
+  const m2 = str.match(/(\d{1,2})\.?\s*([A-Za-zäöüÄÖÜ]{3,})\.?\s+(\d{4})/);
   if (m2) {
     const day = m2[1].padStart(2, '0');
     const mStr = m2[2].toLowerCase().slice(0, 3);
@@ -44,7 +59,7 @@ function normalizeDate(rawDate) {
     return `${year}-${String(mIdx + 1).padStart(2, '0')}-${day}`;
   }
 
-  const d = new Date(rawDate);
+  const d = new Date(str);
   if (!isNaN(d.getTime())) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -104,9 +119,10 @@ async function scanAliExpressAccount() {
                 if (parts.length > 2) price = parseFloat(`${parts[1]}.${parts[2]}`);
               }
 
+              const rawDate = f.createTime || f.gmtCreate || f.createDate || f.formatOrderDate || f.orderDate || f.payTime || f.date;
               collectedOrders.set(String(orderId), {
                 orderId: String(orderId),
-                orderDate: normalizeDate(f.createDate || f.date || f.gmtCreate),
+                orderDate: normalizeDate(rawDate),
                 storeName: f.shopName || f.storeName || 'AliExpress Store',
                 totalAmount: price || parseFloat(f.payAmount || 0),
                 currency: f.currencyCode || 'EUR'
