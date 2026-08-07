@@ -2,6 +2,7 @@ const BaseService = require('../base/BaseService');
 const path = require('path');
 const fs = require('fs');
 const PDFDocument = require('pdfkit');
+const pdf = require('pdf-parse');
 
 class AmazonService extends BaseService {
   constructor(config = {}) {
@@ -17,6 +18,217 @@ class AmazonService extends BaseService {
     this.domain = domain;
     this.baseUrl = `https://www.${domain}`;
     this.ordersUrl = `${this.baseUrl}/your-orders/orders`;
+  }
+
+  /**
+   * Helper to extract invoice number and tax/invoice dates from PDF buffer or text
+   */
+  async extractInvoiceDetails(pdfInput, orderId = '') {
+    let invoiceNumber = null;
+    let invoiceDate = null;
+    let taxDate = null;
+
+    try {
+      let text = '';
+      if (typeof pdfInput === 'string') {
+        text = pdfInput;
+      } else if (Buffer.isBuffer(pdfInput)) {
+        const data = await pdf(pdfInput);
+        text = data.text || '';
+      }
+
+      // 1. Amazon EU S.a.r.l. / Marketplace standard label patterns
+      const matchInv = text.match(/(?:Rechnungsnummer|Quittungsnummer|Gutschriftsnummer|Rechnungs-Nr\.?|Rechnung\s*Nr\.?|Invoice\s*(?:Number|ID|#)?|Beleg-Nr\.?)[\s:]*([A-Za-z0-9\/-]{4,})/i);
+      if (matchInv && !['datum', 'seite', 'bestell', 'kunden', 'rechnungsdatum'].includes(matchInv[1].toLowerCase())) {
+        invoiceNumber = matchInv[1].trim();
+      }
+
+      // 2. Amazon S.a.r.l direct header format: e.g. "Rechnung LU42MG7O5AEUI" or "Rechnung DE41IAJ12AEUI"
+      if (!invoiceNumber) {
+        const matchAmzDirect = text.match(/(?:Rechnung|Quittung|Gutschrift|Invoice)\s+([A-Z]{2}[0-9A-Z]{8,}(?:AEUI)?)/i);
+        if (matchAmzDirect) {
+          invoiceNumber = matchAmzDirect[1].trim();
+        }
+      }
+
+      // 3. Tabular invoice patterns: e.g. "R2024-1232141 02.06.2024 ... Rechnungs-Nr: Datum:"
+      if (!invoiceNumber) {
+        const matchTableInv = text.match(/([A-Z0-9-]{5,})\s+\d{2}\.\d{2}\.\d{4}\s+[A-Z0-9-]+\s+[0-9-]+\s+.*Rechnungs-Nr/s);
+        if (matchTableInv) {
+          invoiceNumber = matchTableInv[1].trim();
+        }
+      }
+
+      // 4. Look for generic prefix codes
+      if (!invoiceNumber) {
+        const genericCodeMatch = text.match(/\b((?:INV|DOC|AEU|AUDDE|DS-AEU|REC|RG|RE)-[A-Za-z0-9-]+)\b/i);
+        if (genericCodeMatch) {
+          invoiceNumber = genericCodeMatch[1].trim();
+        }
+      }
+
+      // Extract tax / invoice dates if available
+      const steuerMatch = text.match(/Steuerdatum[:\s]+(\d{1,2})\.(\d{1,2})\.(\d{4})/i);
+      const rechnungMatch = text.match(/(?:Rechnungsdatum|Lieferdatum)[:\s/]+(\d{1,2})\.?\s*([A-Za-zäöüÄÖÜ]+|\d{1,2})\.?\s*(\d{4})/i);
+      if (steuerMatch) {
+        taxDate = `${steuerMatch[3]}-${steuerMatch[2].padStart(2, '0')}-${steuerMatch[1].padStart(2, '0')}`;
+      }
+      if (rechnungMatch) {
+        invoiceDate = this.normalizeDate(`${rechnungMatch[1]} ${rechnungMatch[2]} ${rechnungMatch[3]}`);
+      }
+    } catch (err) {
+      console.warn(`[Amazon] PDF text extraction warning:`, err.message);
+    }
+
+    if (!invoiceNumber || invoiceNumber.length < 3) {
+      invoiceNumber = `INV-${orderId}`;
+    }
+
+    // Sanitize for filesystem
+    invoiceNumber = invoiceNumber.replace(/[\/\\:*?"<>|]/g, '_');
+
+    return { invoiceNumber, invoiceDate, taxDate };
+  }
+
+  /**
+   * Split a multi-invoice PDF buffer into individual invoices and extract metadata per sub-invoice
+   */
+  async splitAndExtractInvoices(pdfBuffer, order = {}) {
+    if (!Buffer.isBuffer(pdfBuffer) || pdfBuffer.length === 0) {
+      return [];
+    }
+
+    try {
+      // 1. Render page by page to inspect text and page count
+      const pageTexts = [];
+      await pdf(pdfBuffer, {
+        pagerender: (pageData) => {
+          return pageData.getTextContent().then(textContent => {
+            const text = textContent.items.map(i => i.str).join(' ');
+            pageTexts.push(text);
+            return text;
+          });
+        }
+      });
+
+      // 2. If single page or empty, extract directly
+      if (pageTexts.length <= 1) {
+        const details = await this.extractInvoiceDetails(pdfBuffer, order.orderId);
+        return [{
+          pdfBuffer,
+          invoiceNumber: details.invoiceNumber,
+          taxDate: details.taxDate,
+          invoiceDate: details.invoiceDate,
+          brutto: order.brutto,
+          netto: order.netto,
+          ust: order.ust,
+          taxRate: order.taxRate,
+          seller: order.seller
+        }];
+      }
+
+      // 3. Group pages: Check if new invoice starts on each page
+      const invoiceGroups = [];
+      let currentGroup = [];
+
+      pageTexts.forEach((text, pageIndex) => {
+        const isPageOne = /(?:Seite\s*1\s*von|Page\s*1\s*of)/i.test(text);
+        if (isPageOne && currentGroup.length > 0) {
+          invoiceGroups.push(currentGroup);
+          currentGroup = [pageIndex];
+        } else {
+          currentGroup.push(pageIndex);
+        }
+      });
+      if (currentGroup.length > 0) {
+        invoiceGroups.push(currentGroup);
+      }
+
+      // If only 1 group found, return the whole PDF
+      if (invoiceGroups.length <= 1) {
+        const details = await this.extractInvoiceDetails(pdfBuffer, order.orderId);
+        return [{
+          pdfBuffer,
+          invoiceNumber: details.invoiceNumber,
+          taxDate: details.taxDate,
+          invoiceDate: details.invoiceDate,
+          brutto: order.brutto,
+          netto: order.netto,
+          ust: order.ust,
+          taxRate: order.taxRate,
+          seller: order.seller
+        }];
+      }
+
+      // Multiple invoices detected! Split using pdf-lib
+      const { PDFDocument: PDFLibDoc } = require('pdf-lib');
+      const srcDoc = await PDFLibDoc.load(pdfBuffer);
+      const results = [];
+
+      for (let i = 0; i < invoiceGroups.length; i++) {
+        const pageIndices = invoiceGroups[i];
+        const subDoc = await PDFLibDoc.create();
+        const copiedPages = await subDoc.copyPages(srcDoc, pageIndices);
+        copiedPages.forEach(p => subDoc.addPage(p));
+
+        const subBytes = await subDoc.save();
+        const subBuffer = Buffer.from(subBytes);
+        const subData = await pdf(subBuffer);
+        const subText = subData.text || '';
+
+        // Extract metadata for sub-invoice
+        const details = await this.extractInvoiceDetails(subText, `${order.orderId || 'ORDER'}-${i + 1}`);
+
+        // Extract amounts specifically from subText if present
+        const totalMatch = subText.match(/(?:Gesamtpreis|Zahlbetrag|Endbetrag|Gesamtbetrag|Rechnungsbetrag)[\s:]*(\d+[,.]\d{2})\s*€?/i);
+        const dateMatch = subText.match(/(?:Rechnungsdatum|Lieferdatum|Bestelldatum)[\s:\/\n]*(\d{1,2}\.\d{1,2}\.\d{4})/i);
+        const sellerMatch = subText.match(/Verkauft von\s+([^\n\r]+)/i);
+        const ustGesamtMatch = subText.match(/USt\.\s*Gesamt[\s\u00a0]*(\d+[,.]\d{2})\s*€[\s\u00a0]*(\d+[,.]\d{2})\s*€/i);
+
+        let subBrutto = totalMatch ? this.parseCurrency(totalMatch[1]) : order.brutto;
+        let subNetto = ustGesamtMatch ? this.parseCurrency(ustGesamtMatch[1]) : null;
+        let subUst = ustGesamtMatch ? this.parseCurrency(ustGesamtMatch[2]) : null;
+        let subTaxRate = '19%';
+
+        if (subBrutto && (!subNetto || !subUst)) {
+          const breakdown = this.calculateTaxBreakdown({ brutto: subBrutto, taxRate: '19%' });
+          subNetto = breakdown.netto;
+          subUst = breakdown.ust;
+        }
+
+        let subDate = dateMatch ? this.normalizeDate(dateMatch[1]) : (details.invoiceDate || order.date);
+        let subSeller = sellerMatch ? sellerMatch[1].trim() : (order.seller || 'Amazon EU S.a.r.l.');
+
+        results.push({
+          pdfBuffer: subBuffer,
+          invoiceNumber: details.invoiceNumber,
+          taxDate: details.taxDate || subDate,
+          invoiceDate: details.invoiceDate || subDate,
+          date: subDate,
+          brutto: subBrutto,
+          netto: subNetto,
+          ust: subUst,
+          taxRate: subTaxRate,
+          seller: subSeller
+        });
+      }
+
+      return results;
+    } catch (err) {
+      console.warn('[Amazon] Error splitting multi-invoice PDF, falling back to single:', err.message);
+      const details = await this.extractInvoiceDetails(pdfBuffer, order.orderId);
+      return [{
+        pdfBuffer,
+        invoiceNumber: details.invoiceNumber,
+        taxDate: details.taxDate,
+        invoiceDate: details.invoiceDate,
+        brutto: order.brutto,
+        netto: order.netto,
+        ust: order.ust,
+        taxRate: order.taxRate,
+        seller: order.seller
+      }];
+    }
   }
 
   /**
@@ -92,6 +304,7 @@ class AmazonService extends BaseService {
    */
   async scan({ year = new Date().getFullYear().toString(), maxPages = 20 } = {}) {
     console.log(`\n🔍 [Amazon] Scanning orders for year ${year}...`);
+    this.abortRequested = false;
     const context = await this.launchBrowser({ headless: false });
     const page = context.pages()[0] || await context.newPage();
     const orders = [];
@@ -102,6 +315,10 @@ class AmazonService extends BaseService {
 
       let currentPage = 1;
       while (currentPage <= maxPages) {
+        if (this.abortRequested) {
+          console.log('🛑 Amazon Scan abgebrochen.');
+          break;
+        }
         console.log(`📄 Scanning page ${currentPage}...`);
         await page.waitForTimeout(1500);
 
@@ -158,17 +375,110 @@ class AmazonService extends BaseService {
 
       return orders;
     } finally {
-      await context.close();
+      await context.close().catch(() => {});
     }
+  }
+
+  /**
+   * Helper to resolve a list of calendar years to scan based on inputs
+   */
+  resolveTargetYears({ year = null, startDate = null, endDate = null, all = false } = {}) {
+    const currentYear = new Date().getFullYear();
+    
+    if (year) {
+      const yearStr = String(year).trim();
+      const rangeMatch = yearStr.match(/^(\d{4})\s*[-..]+\s*(\d{4})$/);
+      if (rangeMatch) {
+        const start = parseInt(rangeMatch[1], 10);
+        const end = parseInt(rangeMatch[2], 10);
+        const minYear = Math.min(start, end);
+        const maxYear = Math.max(start, end);
+        const years = [];
+        for (let y = maxYear; y >= minYear; y--) {
+          years.push(String(y));
+        }
+        return years;
+      }
+      if (yearStr.includes(',')) {
+        return yearStr.split(',').map(y => y.trim()).filter(y => /^\d{4}$/.test(y));
+      }
+      if (/^\d{4}$/.test(yearStr)) {
+        return [yearStr];
+      }
+    }
+
+    if (startDate || endDate) {
+      const startY = startDate ? parseInt(startDate.slice(0, 4), 10) : currentYear;
+      const endY = endDate ? parseInt(endDate.slice(0, 4), 10) : currentYear;
+      const minYear = isNaN(startY) ? currentYear : Math.min(startY, endY);
+      const maxYear = isNaN(endY) ? currentYear : Math.max(startY, endY);
+      const years = [];
+      for (let y = maxYear; y >= minYear; y--) {
+        years.push(String(y));
+      }
+      return years.length > 0 ? years : [String(currentYear)];
+    }
+
+    if (all) {
+      const years = [];
+      for (let y = currentYear; y >= currentYear - 5; y--) {
+        years.push(String(y));
+      }
+      return years;
+    }
+
+    return [String(currentYear)];
+  }
+
+  /**
+   * Helper to filter orders list by date bounds
+   */
+  filterOrdersByDate(orders, { startDate = null, endDate = null } = {}) {
+    if (!startDate && !endDate) return orders;
+
+    return orders.filter(order => {
+      const d = order.date;
+      if (!d) return true;
+      if (startDate && d < startDate) return false;
+      if (endDate && d > endDate) return false;
+      return true;
+    });
   }
 
   /**
    * Step 3: Fetch & Normalize PDF Invoices
    */
   async fetch({ all = false, year = null, startDate = null, endDate = null, limit = null, headless = false } = {}) {
-    const currentYear = year || new Date().getFullYear().toString();
-    const orders = await this.scan({ year: currentYear });
+    this.abortRequested = false;
+    const targetYears = this.resolveTargetYears({ year, startDate, endDate, all });
+    console.log(`\n📅 [Amazon] Scan-Zieljahre: ${targetYears.join(', ')}`);
+
+    const allOrdersMap = new Map();
+
+    for (const y of targetYears) {
+      if (this.abortRequested) break;
+      const yearOrders = await this.scan({ year: y });
+      for (const ord of yearOrders) {
+        if (ord.orderId && !allOrdersMap.has(ord.orderId)) {
+          allOrdersMap.set(ord.orderId, ord);
+        }
+      }
+    }
     
+    if (this.abortRequested) {
+      return { downloaded: 0, skipped: 0, total: 0, aborted: true };
+    }
+
+    let orders = Array.from(allOrdersMap.values());
+    const totalFound = orders.length;
+
+    if (startDate || endDate) {
+      orders = this.filterOrdersByDate(orders, { startDate, endDate });
+      console.log(`🎯 [Amazon] Gefiltert nach Zeitraum (${startDate || 'Start'} bis ${endDate || 'Heute'}): ${orders.length} von ${totalFound} Bestellungen.`);
+    }
+
+    orders.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
     console.log(`\n⬇️ [Amazon] Processing ${orders.length} invoices...`);
     const context = await this.launchBrowser({ headless });
     const page = context.pages()[0] || await context.newPage();
@@ -177,6 +487,10 @@ class AmazonService extends BaseService {
 
     try {
       for (const order of orders) {
+        if (this.abortRequested) {
+          console.log('🛑 Amazon Download abgebrochen.');
+          break;
+        }
         if (limit && downloaded >= limit) break;
 
         if (this.isAlreadyDownloaded(order.orderId)) {
@@ -189,40 +503,71 @@ class AmazonService extends BaseService {
         const subfolder = path.join(this.invoicesDir, yearMonth);
         if (!fs.existsSync(subfolder)) fs.mkdirSync(subfolder, { recursive: true });
 
-        const pdfFileName = `${safeDate}_Order_${order.orderId}.pdf`;
-        const pdfFilePath = path.join(subfolder, pdfFileName);
-        const relPdfPath = path.relative(path.resolve(this.invoicesDir, '..', '..'), pdfFilePath);
-
         console.log(`📥 Downloading: ${order.orderId} (${order.date} | ${order.brutto}€)`);
 
         try {
+          const pdfBuffers = [];
           const popoverUrl = `${this.baseUrl}/your-orders/invoice/popover?orderId=${order.orderId}`;
           const popoverRes = await page.request.get(popoverUrl);
           const popoverHtml = await popoverRes.text();
           
-          const nativePdfMatch = popoverHtml.match(/\/documents\/download\/[a-f0-9-]+\/invoice\.pdf/);
+          const nativePdfMatches = Array.from(popoverHtml.matchAll(/\/documents\/download\/[a-f0-9-]+\/invoice\.pdf/g));
           
-          if (nativePdfMatch) {
-            console.log(`   🔗 Found native PDF invoice! Downloading...`);
-            const downloadUrl = `${this.baseUrl}${nativePdfMatch[0]}`;
-            const pdfRes = await page.request.get(downloadUrl);
-            const pdfBuffer = await pdfRes.body();
-            fs.writeFileSync(pdfFilePath, pdfBuffer);
+          if (nativePdfMatches.length > 0) {
+            console.log(`   🔗 Found ${nativePdfMatches.length} native PDF invoice link(s)! Downloading...`);
+            for (const match of nativePdfMatches) {
+              const downloadUrl = `${this.baseUrl}${match[0]}`;
+              const pdfRes = await page.request.get(downloadUrl);
+              pdfBuffers.push(await pdfRes.body());
+            }
           } else {
             console.log(`   🖨️ No native PDF found. Rendering HTML fallback summary...`);
             const printUrl = `${this.baseUrl}/gp/css/summary/print.html?orderID=${order.orderId}`;
             await page.goto(printUrl, { waitUntil: 'networkidle', timeout: 30000 });
-            await page.pdf({
-              path: pdfFilePath,
+            const fallbackBuf = await page.pdf({
               format: 'A4',
               printBackground: true,
               margin: { top: '15mm', bottom: '15mm', left: '15mm', right: '15mm' }
             });
+            pdfBuffers.push(fallbackBuf);
           }
 
-          order.pdfPath = relPdfPath;
-          this.saveLedgerRecord(order);
-          downloaded++;
+          for (const rawPdfBuffer of pdfBuffers) {
+            const splitInvoices = await this.splitAndExtractInvoices(rawPdfBuffer, order);
+            for (const subInv of splitInvoices) {
+              const invDate = subInv.date || subInv.invoiceDate || order.date || 'UNKNOWN-DATE';
+              const invYearMonth = invDate.substring(0, 7);
+              const invSubfolder = path.join(this.invoicesDir, invYearMonth);
+              if (!fs.existsSync(invSubfolder)) fs.mkdirSync(invSubfolder, { recursive: true });
+
+              const safeInvNum = (subInv.invoiceNumber || `INV-${order.orderId}`).replace(/[\/\\:*?"<>|]/g, '_');
+              const pdfFileName = `${invDate}_${safeInvNum}.pdf`;
+              const pdfFilePath = path.join(invSubfolder, pdfFileName);
+              const relPdfPath = path.relative(path.resolve(this.invoicesDir, '..', '..'), pdfFilePath);
+
+              fs.writeFileSync(pdfFilePath, subInv.pdfBuffer);
+
+              const record = {
+                ...order,
+                id: `AMZ-${order.orderId}-${safeInvNum}`,
+                orderId: order.orderId,
+                invoiceNumber: subInv.invoiceNumber || `INV-${order.orderId}`,
+                date: invDate,
+                steuerdatum: subInv.taxDate || invDate,
+                rechnungsdatum: subInv.invoiceDate || invDate,
+                brutto: subInv.brutto ?? order.brutto,
+                netto: subInv.netto ?? order.netto,
+                ust: subInv.ust ?? order.ust,
+                taxRate: subInv.taxRate || order.taxRate || '19%',
+                seller: subInv.seller || order.seller || 'Amazon EU S.a.r.l.',
+                pdfPath: relPdfPath
+              };
+
+              this.saveLedgerRecord(record);
+              console.log(`   📄 Gespeichert als: ${pdfFileName} (${record.brutto}€)`);
+              downloaded++;
+            }
+          }
           await page.waitForTimeout(1000);
         } catch (err) {
           console.warn(`⚠️ Failed to download invoice for ${order.orderId}:`, err.message);
@@ -252,6 +597,8 @@ class AmazonService extends BaseService {
     const totalBrutto = sorted.reduce((sum, item) => sum + (item.brutto || 0), 0);
     const totalNetto = sorted.reduce((sum, item) => sum + (item.netto || 0), 0);
     const totalUst = sorted.reduce((sum, item) => sum + (item.ust || 0), 0);
+
+    console.log(`📊 Analysiere ${sorted.length} Amazon-Belege...`);
 
     const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 30 });
     const stream = fs.createWriteStream(outputFile);
@@ -300,6 +647,7 @@ class AmazonService extends BaseService {
       }
 
       const inv = sorted[i];
+      console.log(`  📄 [${i + 1}/${sorted.length}] Analysiere: ${inv.orderId || inv.id} (${inv.date} | ${inv.brutto}€)`);
       const bg = i % 2 === 0 ? '#f8f9fa' : '#fff';
       doc.rect(x, y, cols.reduce((s, c) => s + c.width, 0), rowHeight).fill(bg);
       doc.fillColor('#000');

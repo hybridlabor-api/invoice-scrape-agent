@@ -6,8 +6,14 @@ const path = require('path');
 const fs = require('fs');
 const ServiceRegistry = require('./services/registry');
 const MasterAnalyzer = require('./services/unified/master-analyzer');
-const { scaffoldService } = require('./services/generator/scaffold');
 const { getInvoicesDir, getUserDataDir } = require('./utils/paths');
+const pkg = require('./package.json');
+
+// Check CLI version flag
+if (process.argv.includes('--version') || process.argv.includes('-v') || process.argv.includes('-V')) {
+  console.log(`v${pkg.version}`);
+  process.exit(0);
+}
 
 // Initialize and discover services
 ServiceRegistry.autoDiscover(path.join(__dirname, 'services'));
@@ -254,7 +260,7 @@ async function main() {
   while (true) {
     console.clear();
     console.log("======================================================");
-    console.log("       🧾 BDB Multi-Service Invoice & Tax Suite 🧾     ");
+    console.log(`   🧾 BDB Multi-Service Invoice & Tax Suite v${pkg.version} 🧾   `);
     console.log("======================================================\n");
 
     const services = ServiceRegistry.list();

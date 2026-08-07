@@ -77,4 +77,11 @@ describe('BaseService Interface & Utilities', () => {
     assert.equal(service.parseCurrency('24,99 EUR'), 24.99);
     assert.equal(service.parseCurrency('19.99'), 19.99);
   });
+
+  test('should handle cancellation correctly', () => {
+    const service = new MockService();
+    assert.equal(service.abortRequested, false);
+    service.cancel();
+    assert.equal(service.abortRequested, true);
+  });
 });

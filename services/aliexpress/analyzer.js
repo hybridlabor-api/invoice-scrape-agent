@@ -85,8 +85,10 @@ async function analyzeAliExpressInvoices() {
 
   const items = [];
 
-  for (const relPath of pdfFiles) {
+  for (let i = 0; i < pdfFiles.length; i++) {
+    const relPath = pdfFiles[i];
     const filename = path.basename(relPath);
+    console.log(`  📄 [${i + 1}/${pdfFiles.length}] Analysiere: ${filename}`);
     // Format: AliExpress-YYYY-MM-DD-ORDERID.pdf
     const match = filename.match(/AliExpress-(\d{4}-\d{2}-\d{2})-(\d+)\.pdf/);
     const orderId = match ? match[2] : filename.replace('.pdf', '');

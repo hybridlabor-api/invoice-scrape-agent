@@ -50,13 +50,23 @@ app.on('will-quit', () => {
   if (cronProcess) cronProcess.kill();
 });
 
+// Filter internal PDF font parsing noise from GUI terminal
+const isNoise = (msg) => {
+  if (typeof msg !== 'string') return false;
+  return msg.includes('Ran out of space in font private use area') || 
+         msg.includes('TT: undefined function') ||
+         msg.includes('The path has a non-standard shape');
+};
+
 // Intercept console.log and console.error to send to GUI
 const originalLog = console.log;
 console.log = (...args) => {
   try { originalLog(...args); } catch (e) {}
   if (mainWindow) {
     const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
-    try { mainWindow.webContents.send('backend-log', { type: 'info', message: msg }); } catch(e) {}
+    if (!isNoise(msg)) {
+      try { mainWindow.webContents.send('backend-log', { type: 'info', message: msg }); } catch(e) {}
+    }
   }
 };
 
@@ -65,7 +75,20 @@ console.error = (...args) => {
   try { originalError(...args); } catch (e) {}
   if (mainWindow) {
     const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
-    try { mainWindow.webContents.send('backend-log', { type: 'error', message: msg }); } catch(e) {}
+    if (!isNoise(msg)) {
+      try { mainWindow.webContents.send('backend-log', { type: 'error', message: msg }); } catch(e) {}
+    }
+  }
+};
+
+const originalWarn = console.warn;
+console.warn = (...args) => {
+  try { originalWarn(...args); } catch (e) {}
+  if (mainWindow) {
+    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+    if (!isNoise(msg)) {
+      try { mainWindow.webContents.send('backend-log', { type: 'warning', message: msg }); } catch(e) {}
+    }
   }
 };
 
@@ -74,7 +97,10 @@ const originalStdoutWrite = process.stdout.write.bind(process.stdout);
 process.stdout.write = (chunk, encoding, callback) => {
   try { originalStdoutWrite(chunk, encoding, callback); } catch (e) {}
   if (mainWindow) {
-    try { mainWindow.webContents.send('backend-log', { type: 'raw', message: chunk.toString() }); } catch(e) {}
+    const str = chunk.toString();
+    if (!isNoise(str)) {
+      try { mainWindow.webContents.send('backend-log', { type: 'raw', message: str }); } catch(e) {}
+    }
   }
   return true;
 };
@@ -187,6 +213,8 @@ ipcMain.handle('create-scraper', async (event, data) => {
   }
 });
 
+let currentRunningService = null;
+
 ipcMain.handle('run-action', async (event, { serviceId, action, params }) => {
   try {
     if (serviceId === 'master_report') {
@@ -197,6 +225,7 @@ ipcMain.handle('run-action', async (event, { serviceId, action, params }) => {
 
     const service = ServiceRegistry.get(serviceId);
     if (!service) throw new Error("Service not found");
+    currentRunningService = service;
 
     if (action === 'auth') {
       console.log(`Starting authentication for ${service.displayName}...`);
@@ -218,12 +247,33 @@ ipcMain.handle('run-action', async (event, { serviceId, action, params }) => {
       await service.analyze();
     }
     
-    console.log(`✅ Action '${action}' completed successfully.`);
+    console.log(`✅ Action '${action}' completed.`);
     return { success: true };
   } catch (err) {
+    if (currentRunningService && currentRunningService.abortRequested) {
+      console.log(`🛑 Action '${action}' abgebrochen.`);
+      return { success: false, aborted: true };
+    }
     console.error(`❌ Action Failed: ${err.message}`);
     return { success: false, error: err.message };
+  } finally {
+    currentRunningService = null;
   }
+});
+
+ipcMain.handle('cancel-action', async () => {
+  if (currentRunningService) {
+    console.log(`🛑 Abbruch durch Benutzer angefordert...`);
+    try {
+      if (typeof currentRunningService.cancel === 'function') {
+        currentRunningService.cancel();
+      }
+    } catch (e) {
+      console.warn(`Cancel warning:`, e.message);
+    }
+    return { success: true };
+  }
+  return { success: false, message: 'Keine laufende Aktion gefunden.' };
 });
 
 const { spawn } = require('child_process');
@@ -263,6 +313,11 @@ ipcMain.handle('stop-cron', async () => {
 });
 
 ipcMain.handle('get-cron-status', () => !!cronProcess);
+
+ipcMain.handle('get-app-version', () => {
+  const pkg = require('../package.json');
+  return pkg.version;
+});
 
 ipcMain.handle('update-app', async () => {
   const { exec } = require('child_process');

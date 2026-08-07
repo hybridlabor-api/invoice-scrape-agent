@@ -3,9 +3,129 @@ const path = require('path');
 const XLSX = require('xlsx');
 
 /**
- * Currency Number Format for Excel (German display)
+ * Currency and Date formats for Excel
  */
 const NUM_FMT = '#,##0.00';
+const DATE_FMT = 'yyyy-mm-dd';
+
+/**
+ * Sanitize sheet name for Excel compatibility (max 31 chars, no reserved chars)
+ */
+function sanitizeSheetName(name, existingNames = new Set()) {
+  let clean = (name || 'Service').replace(/[\\/?*:[\]]/g, '').trim().slice(0, 31) || 'Sheet';
+  let uniqueName = clean;
+  let counter = 1;
+  while (existingNames.has(uniqueName.toLowerCase())) {
+    uniqueName = `${clean.slice(0, 27)}_${counter++}`;
+  }
+  existingNames.add(uniqueName.toLowerCase());
+  return uniqueName;
+}
+
+/**
+ * Enable native Excel AutoFilter dropdown on a worksheet
+ */
+function enableAutoFilter(ws, startCol, startRow, endCol, endRow) {
+  if (endRow >= startRow) {
+    ws['!autofilter'] = {
+      ref: XLSX.utils.encode_range({
+        s: { r: startRow, c: startCol },
+        e: { r: endRow, c: endCol }
+      })
+    };
+  }
+}
+
+/**
+ * Sort records by criterion
+ */
+function sortRecords(records, sortBy = 'service') {
+  const cloned = [...records];
+  if (sortBy === 'service') {
+    cloned.sort((a, b) => {
+      const sA = (a.serviceDisplayName || a.service || '').toLowerCase();
+      const sB = (b.serviceDisplayName || b.service || '').toLowerCase();
+      if (sA !== sB) return sA.localeCompare(sB);
+      const dA = a.steuerdatum || a.date || a.rechnungsdatum || '';
+      const dB = b.steuerdatum || b.date || b.rechnungsdatum || '';
+      return dB.localeCompare(dA);
+    });
+  } else if (sortBy === 'date') {
+    cloned.sort((a, b) => {
+      const dA = a.steuerdatum || a.date || a.rechnungsdatum || '';
+      const dB = b.steuerdatum || b.date || b.rechnungsdatum || '';
+      return dB.localeCompare(dA);
+    });
+  } else if (sortBy === 'amount') {
+    cloned.sort((a, b) => (b.brutto || 0) - (a.brutto || 0));
+  }
+  return cloned;
+}
+
+/**
+ * Helper to determine default category based on service and merchant / item hints
+ */
+function resolveCategory(record = {}) {
+  if (record.category && String(record.category).trim()) {
+    return String(record.category).trim();
+  }
+  const srv = (record.service || record.serviceDisplayName || '').toLowerCase();
+  const seller = (record.seller || record.store || record.anbieter || '').toLowerCase();
+
+  if (srv.includes('hotel') || srv.includes('airbnb') || srv.includes('booking') || srv.includes('eats') || srv.includes('lieferando') || srv.includes('restaurant') || seller.includes('hotel') || seller.includes('restaurant') || seller.includes('cafe') || seller.includes('bäckerei') || seller.includes('eats') || seller.includes('food')) {
+    return 'Kost & Logis';
+  }
+
+  if (srv.includes('uber') || srv.includes('bolt') || srv.includes('taxi') || srv.includes('bahn') || srv.includes('flight') || srv.includes('lufthansa') || seller.includes('uber') || seller.includes('bolt') || seller.includes('taxi') || seller.includes('deutsche bahn')) {
+    return 'Reise';
+  }
+
+  if (srv.includes('apple') || srv.includes('cyberport') || srv.includes('saturn') || srv.includes('mediamarkt') || (record.brutto && record.brutto >= 150)) {
+    return 'Anschaffung';
+  }
+
+  if (srv.includes('aliexpress') || srv.includes('amazon')) {
+    if (record.brutto && record.brutto < 80) {
+      return 'Verbrauchsmaterial';
+    }
+    return 'Anschaffung';
+  }
+
+  return 'Sonstiges';
+}
+
+/**
+ * Group records by Category (Anschaffung, Verbrauchsmaterial, Kost & Logis, Reise, Sonstiges)
+ */
+function groupByCategory(records) {
+  const categories = {};
+  for (const r of records) {
+    const cat = resolveCategory(r);
+    if (!categories[cat]) {
+      categories[cat] = {
+        category: cat,
+        count: 0,
+        netto: 0,
+        ust: 0,
+        brutto: 0
+      };
+    }
+    categories[cat].count++;
+    categories[cat].netto += Number((r.netto || 0).toFixed(2));
+    categories[cat].ust += Number((r.ust || 0).toFixed(2));
+    categories[cat].brutto += Number((r.brutto || 0).toFixed(2));
+  }
+
+  const order = ['Anschaffung', 'Verbrauchsmaterial', 'Kost & Logis', 'Reise', 'Sonstiges'];
+  return Object.values(categories).sort((a, b) => {
+    const idxA = order.indexOf(a.category);
+    const idxB = order.indexOf(b.category);
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+    return a.category.localeCompare(b.category);
+  });
+}
 
 /**
  * Group records by month (YYYY-MM)
@@ -35,8 +155,6 @@ function groupByMonth(records) {
 
 /**
  * Helper to build cell object with value AND optional Excel formula.
- * Critical: When formula is provided, 'v' is ALWAYS populated with the pre-calculated number
- * so that Google Sheets, OpenCalc, and Excel immediately display the total value without needing recalculation.
  */
 function numCell(val, formula = null) {
   const num = Number(Number(val || 0).toFixed(2));
@@ -48,6 +166,32 @@ function numCell(val, formula = null) {
 
 function strCell(val) {
   return { t: 's', v: String(val == null ? '' : val) };
+}
+
+/**
+ * Helper to build native Excel Date cell.
+ */
+function dateCell(val) {
+  if (!val || val === '-' || val === 'Unbekannt') {
+    return { t: 's', v: '-' };
+  }
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    return { t: 'd', v: val, z: DATE_FMT };
+  }
+  const str = String(val).trim();
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1;
+    const day = parseInt(match[3], 10);
+    const d = new Date(Date.UTC(year, month, day));
+    return { t: 'd', v: d, z: DATE_FMT };
+  }
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    return { t: 'd', v: d, z: DATE_FMT };
+  }
+  return { t: 's', v: str };
 }
 
 /**
@@ -64,10 +208,11 @@ async function exportServiceExcel({
   const xlsPath = path.join(invoicesDir, `${baseName}.xls`);
   const xlsxPath = path.join(invoicesDir, `${baseName}.xlsx`);
 
+  const sortedRecords = sortRecords(records, 'date');
   const workbook = XLSX.utils.book_new();
 
   // -------------------------------------------------------------
-  // Sheet 1: Alle Belege (Detailtabelle mit Steuer- und Rechnungsdatum)
+  // Sheet 1: Alle Belege (Detailtabelle mit Steuer- und Rechnungsdatum + Kategorie)
   // -------------------------------------------------------------
   const sheet1Data = [];
 
@@ -78,6 +223,7 @@ async function exportServiceExcel({
     strCell('Rechnungsdatum'),
     strCell('Beleg-/Bestellnummer'),
     strCell('Händler / Anbieter'),
+    strCell('Kategorie'),
     strCell('Netto (€)'),
     strCell('USt (€)'),
     strCell('Brutto (€)'),
@@ -90,7 +236,7 @@ async function exportServiceExcel({
   let totalBrutto = 0;
 
   // Data Rows (Rows 2 to N+1)
-  records.forEach((r, idx) => {
+  sortedRecords.forEach((r, idx) => {
     const net = Number((r.netto || 0).toFixed(2));
     const ust = Number((r.ust || 0).toFixed(2));
     const gross = Number((r.brutto || 0).toFixed(2));
@@ -101,10 +247,11 @@ async function exportServiceExcel({
 
     sheet1Data.push([
       { t: 'n', v: idx + 1 },
-      strCell(r.steuerdatum || r.date || '-'),
-      strCell(r.rechnungsdatum || r.invoiceDate || r.steuerdatum || r.date || '-'),
+      dateCell(r.steuerdatum || r.date || '-'),
+      dateCell(r.rechnungsdatum || r.invoiceDate || r.steuerdatum || r.date || '-'),
       strCell(r.orderId || r.invoiceNumber || r.id || '-'),
       strCell(r.seller || r.store || r.anbieter || '-'),
+      strCell(resolveCategory(r)),
       numCell(net),
       numCell(ust),
       numCell(gross),
@@ -113,19 +260,20 @@ async function exportServiceExcel({
     ]);
   });
 
-  const lastDataRow = records.length + 1; // 1-indexed (e.g. 52 for 51 records)
+  const lastDataRow = sortedRecords.length + 1; // 1-indexed
 
   // Totals Row
-  if (records.length > 0) {
+  if (sortedRecords.length > 0) {
     sheet1Data.push([
       strCell(''),
       strCell(''),
       strCell(''),
       strCell(''),
+      strCell(''),
       strCell('GESAMTSUMME:'),
-      numCell(totalNetto, `SUM(F2:F${lastDataRow})`),
-      numCell(totalUst, `SUM(G2:G${lastDataRow})`),
-      numCell(totalBrutto, `SUM(H2:H${lastDataRow})`),
+      numCell(totalNetto, `SUM(G2:G${lastDataRow})`),
+      numCell(totalUst, `SUM(H2:H${lastDataRow})`),
+      numCell(totalBrutto, `SUM(I2:I${lastDataRow})`),
       strCell(''),
       strCell('')
     ]);
@@ -138,12 +286,14 @@ async function exportServiceExcel({
     { wch: 16 },
     { wch: 28 },
     { wch: 32 },
+    { wch: 20 },
     { wch: 15 },
     { wch: 15 },
     { wch: 16 },
     { wch: 12 },
     { wch: 40 }
   ];
+  enableAutoFilter(ws1, 0, 0, 10, sortedRecords.length);
   XLSX.utils.book_append_sheet(workbook, ws1, 'Alle Belege');
 
   // -------------------------------------------------------------
@@ -159,7 +309,7 @@ async function exportServiceExcel({
     strCell('Brutto (€)')
   ]);
 
-  const monthlyGroups = groupByMonth(records);
+  const monthlyGroups = groupByMonth(sortedRecords);
   let sumMonthCount = 0;
   let sumMonthNetto = 0;
   let sumMonthUst = 0;
@@ -201,10 +351,62 @@ async function exportServiceExcel({
   ];
   XLSX.utils.book_append_sheet(workbook, ws2, 'Monatsübersicht');
 
-  // Write .XLS (BIFF8 binary format - 100% native in OpenCalc, Excel & Sheets)
-  XLSX.writeFile(workbook, xlsPath, { bookType: 'biff8' });
+  // -------------------------------------------------------------
+  // Sheet 3: Kategorien (Ausgaben nach Art)
+  // -------------------------------------------------------------
+  const sheetCatData = [];
+  sheetCatData.push([
+    strCell('Kategorie'),
+    strCell('Anzahl Belege'),
+    strCell('Netto (€)'),
+    strCell('USt (€)'),
+    strCell('Brutto (€)')
+  ]);
 
-  // Write .XLSX as companion
+  const catGroups = groupByCategory(sortedRecords);
+  let sumCatCount = 0;
+  let sumCatNetto = 0;
+  let sumCatUst = 0;
+  let sumCatBrutto = 0;
+
+  catGroups.forEach(c => {
+    sumCatCount += c.count;
+    sumCatNetto += c.netto;
+    sumCatUst += c.ust;
+    sumCatBrutto += c.brutto;
+
+    sheetCatData.push([
+      strCell(c.category),
+      { t: 'n', v: c.count },
+      numCell(c.netto),
+      numCell(c.ust),
+      numCell(c.brutto)
+    ]);
+  });
+
+  const lastCatRow = catGroups.length + 1;
+  if (catGroups.length > 0) {
+    sheetCatData.push([
+      strCell('GESAMT:'),
+      { t: 'n', v: sumCatCount, f: `SUM(B2:B${lastCatRow})` },
+      numCell(sumCatNetto, `SUM(C2:C${lastCatRow})`),
+      numCell(sumCatUst, `SUM(D2:D${lastCatRow})`),
+      numCell(sumCatBrutto, `SUM(E2:E${lastCatRow})`)
+    ]);
+  }
+
+  const wsCat = XLSX.utils.aoa_to_sheet(sheetCatData);
+  wsCat['!cols'] = [
+    { wch: 24 },
+    { wch: 16 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 20 }
+  ];
+  XLSX.utils.book_append_sheet(workbook, wsCat, 'Kategorien');
+
+  // Write .XLS and .XLSX
+  XLSX.writeFile(workbook, xlsPath, { bookType: 'biff8' });
   XLSX.writeFile(workbook, xlsxPath, { bookType: 'xlsx' });
 
   return { xlsPath, xlsxPath };
@@ -212,15 +414,18 @@ async function exportServiceExcel({
 
 /**
  * Create Unified Master .XLS (and .XLSX) for ALL services combined
+ * Supports auto-filter, sorting by service/date, dedicated tabs per integration & category summary
  */
-async function exportMasterExcel({ invoicesDir, records = [], metrics = {} }) {
+async function exportMasterExcel({ invoicesDir, records = [], metrics = {}, sortBy = 'service' }) {
   const xlsPath = path.join(invoicesDir, 'master_ledger.xls');
   const xlsxPath = path.join(invoicesDir, 'master_ledger.xlsx');
 
+  const sortedRecords = sortRecords(records, sortBy);
   const workbook = XLSX.utils.book_new();
+  const existingSheetNames = new Set();
 
   // -------------------------------------------------------------
-  // Sheet 1: Alle Belege (Master Ledger)
+  // Sheet 1: Alle Belege (Master Ledger - Sortierbar + Kategorie)
   // -------------------------------------------------------------
   const sheet1Data = [];
 
@@ -231,6 +436,7 @@ async function exportMasterExcel({ invoicesDir, records = [], metrics = {} }) {
     strCell('Rechnungsdatum'),
     strCell('Rechnungsnummer / Order-ID'),
     strCell('Anbieter / Shop'),
+    strCell('Kategorie'),
     strCell('Netto (€)'),
     strCell('USt (€)'),
     strCell('Brutto (€)'),
@@ -241,7 +447,7 @@ async function exportMasterExcel({ invoicesDir, records = [], metrics = {} }) {
   let totalUst = 0;
   let totalBrutto = 0;
 
-  records.forEach((r, idx) => {
+  sortedRecords.forEach((r, idx) => {
     const net = Number((r.netto || 0).toFixed(2));
     const ust = Number((r.ust || 0).toFixed(2));
     const gross = Number((r.brutto || 0).toFixed(2));
@@ -253,10 +459,11 @@ async function exportMasterExcel({ invoicesDir, records = [], metrics = {} }) {
     sheet1Data.push([
       { t: 'n', v: idx + 1 },
       strCell(r.serviceDisplayName || r.service || 'Sonstige'),
-      strCell(r.steuerdatum || r.date || '-'),
-      strCell(r.rechnungsdatum || r.invoiceDate || r.steuerdatum || r.date || '-'),
+      dateCell(r.steuerdatum || r.date || '-'),
+      dateCell(r.rechnungsdatum || r.invoiceDate || r.steuerdatum || r.date || '-'),
       strCell(r.invoiceNumber || r.orderId || r.id || '-'),
       strCell(r.seller || r.store || r.anbieter || '-'),
+      strCell(resolveCategory(r)),
       numCell(net),
       numCell(ust),
       numCell(gross),
@@ -264,18 +471,19 @@ async function exportMasterExcel({ invoicesDir, records = [], metrics = {} }) {
     ]);
   });
 
-  const lastDataRow = records.length + 1;
-  if (records.length > 0) {
+  const lastDataRow = sortedRecords.length + 1;
+  if (sortedRecords.length > 0) {
     sheet1Data.push([
       strCell(''),
       strCell(''),
       strCell(''),
       strCell(''),
       strCell(''),
+      strCell(''),
       strCell('GESAMTSUMME:'),
-      numCell(totalNetto, `SUM(G2:G${lastDataRow})`),
-      numCell(totalUst, `SUM(H2:H${lastDataRow})`),
-      numCell(totalBrutto, `SUM(I2:I${lastDataRow})`),
+      numCell(totalNetto, `SUM(H2:H${lastDataRow})`),
+      numCell(totalUst, `SUM(I2:I${lastDataRow})`),
+      numCell(totalBrutto, `SUM(J2:J${lastDataRow})`),
       strCell('')
     ]);
   }
@@ -288,15 +496,163 @@ async function exportMasterExcel({ invoicesDir, records = [], metrics = {} }) {
     { wch: 16 },
     { wch: 28 },
     { wch: 32 },
+    { wch: 20 },
     { wch: 15 },
     { wch: 15 },
     { wch: 16 },
     { wch: 12 }
   ];
-  XLSX.utils.book_append_sheet(workbook, ws1, 'Alle Belege');
+  enableAutoFilter(ws1, 0, 0, 10, sortedRecords.length);
+  const masterSheetName = sanitizeSheetName('Alle Belege', existingSheetNames);
+  XLSX.utils.book_append_sheet(workbook, ws1, masterSheetName);
 
   // -------------------------------------------------------------
-  // Sheet 2: Monatsübersicht & Summen
+  // Dedicated Per-Service Sheets (Amazon, Uber, AliExpress, etc.)
+  // -------------------------------------------------------------
+  const serviceGroups = {};
+  sortedRecords.forEach(r => {
+    const key = r.serviceDisplayName || (r.service ? r.service.toUpperCase() : 'Sonstige');
+    if (!serviceGroups[key]) serviceGroups[key] = [];
+    serviceGroups[key].push(r);
+  });
+
+  Object.entries(serviceGroups).forEach(([srvName, srvRecords]) => {
+    const srvSheetData = [];
+    srvSheetData.push([
+      strCell('Nr.'),
+      strCell('Steuerdatum'),
+      strCell('Rechnungsdatum'),
+      strCell('Rechnungsnummer / Order-ID'),
+      strCell('Händler / Anbieter'),
+      strCell('Kategorie'),
+      strCell('Netto (€)'),
+      strCell('USt (€)'),
+      strCell('Brutto (€)'),
+      strCell('Steuersatz'),
+      strCell('PDF-Datei')
+    ]);
+
+    let srvNetto = 0;
+    let srvUst = 0;
+    let srvBrutto = 0;
+
+    srvRecords.forEach((r, idx) => {
+      const net = Number((r.netto || 0).toFixed(2));
+      const ust = Number((r.ust || 0).toFixed(2));
+      const gross = Number((r.brutto || 0).toFixed(2));
+
+      srvNetto += net;
+      srvUst += ust;
+      srvBrutto += gross;
+
+      srvSheetData.push([
+        { t: 'n', v: idx + 1 },
+        dateCell(r.steuerdatum || r.date || '-'),
+        dateCell(r.rechnungsdatum || r.invoiceDate || r.steuerdatum || r.date || '-'),
+        strCell(r.invoiceNumber || r.orderId || r.id || '-'),
+        strCell(r.seller || r.store || r.anbieter || '-'),
+        strCell(resolveCategory(r)),
+        numCell(net),
+        numCell(ust),
+        numCell(gross),
+        strCell(r.taxRate || '19%'),
+        strCell(r.pdfPath || '')
+      ]);
+    });
+
+    const lastSrvRow = srvRecords.length + 1;
+    if (srvRecords.length > 0) {
+      srvSheetData.push([
+        strCell(''),
+        strCell(''),
+        strCell(''),
+        strCell(''),
+        strCell(''),
+        strCell(`SUMME (${srvName}):`),
+        numCell(srvNetto, `SUM(G2:G${lastSrvRow})`),
+        numCell(srvUst, `SUM(H2:H${lastSrvRow})`),
+        numCell(srvBrutto, `SUM(I2:I${lastSrvRow})`),
+        strCell(''),
+        strCell('')
+      ]);
+    }
+
+    const srvWs = XLSX.utils.aoa_to_sheet(srvSheetData);
+    srvWs['!cols'] = [
+      { wch: 6 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 28 },
+      { wch: 32 },
+      { wch: 20 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 16 },
+      { wch: 12 },
+      { wch: 40 }
+    ];
+    enableAutoFilter(srvWs, 0, 0, 10, srvRecords.length);
+    const sheetName = sanitizeSheetName(srvName, existingSheetNames);
+    XLSX.utils.book_append_sheet(workbook, srvWs, sheetName);
+  });
+
+  // -------------------------------------------------------------
+  // Sheet: Kategorienübersicht
+  // -------------------------------------------------------------
+  const sheetCatData = [];
+  sheetCatData.push([
+    strCell('Kategorie'),
+    strCell('Anzahl Belege'),
+    strCell('Netto (€)'),
+    strCell('USt (€)'),
+    strCell('Brutto (€)')
+  ]);
+
+  const catGroups = groupByCategory(sortedRecords);
+  let sumCatCount = 0;
+  let sumCatNetto = 0;
+  let sumCatUst = 0;
+  let sumCatBrutto = 0;
+
+  catGroups.forEach(c => {
+    sumCatCount += c.count;
+    sumCatNetto += c.netto;
+    sumCatUst += c.ust;
+    sumCatBrutto += c.brutto;
+
+    sheetCatData.push([
+      strCell(c.category),
+      { t: 'n', v: c.count },
+      numCell(c.netto),
+      numCell(c.ust),
+      numCell(c.brutto)
+    ]);
+  });
+
+  const lastCatRow = catGroups.length + 1;
+  if (catGroups.length > 0) {
+    sheetCatData.push([
+      strCell('GESAMT:'),
+      { t: 'n', v: sumCatCount, f: `SUM(B2:B${lastCatRow})` },
+      numCell(sumCatNetto, `SUM(C2:C${lastCatRow})`),
+      numCell(sumCatUst, `SUM(D2:D${lastCatRow})`),
+      numCell(sumCatBrutto, `SUM(E2:E${lastCatRow})`)
+    ]);
+  }
+
+  const wsCat = XLSX.utils.aoa_to_sheet(sheetCatData);
+  wsCat['!cols'] = [
+    { wch: 24 },
+    { wch: 16 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 20 }
+  ];
+  const catSheetName = sanitizeSheetName('Kategorien', existingSheetNames);
+  XLSX.utils.book_append_sheet(workbook, wsCat, catSheetName);
+
+  // -------------------------------------------------------------
+  // Sheet: Monatsübersicht & Summen
   // -------------------------------------------------------------
   const sheet2Data = [];
 
@@ -308,7 +664,7 @@ async function exportMasterExcel({ invoicesDir, records = [], metrics = {} }) {
     strCell('Brutto (€)')
   ]);
 
-  const monthlyGroups = groupByMonth(records);
+  const monthlyGroups = groupByMonth(sortedRecords);
   let sumMonthCount = 0;
   let sumMonthNetto = 0;
   let sumMonthUst = 0;
@@ -348,10 +704,11 @@ async function exportMasterExcel({ invoicesDir, records = [], metrics = {} }) {
     { wch: 18 },
     { wch: 20 }
   ];
-  XLSX.utils.book_append_sheet(workbook, ws2, 'Monatsübersicht');
+  const monthSheetName = sanitizeSheetName('Monatsübersicht', existingSheetNames);
+  XLSX.utils.book_append_sheet(workbook, ws2, monthSheetName);
 
   // -------------------------------------------------------------
-  // Sheet 3: Aufschlüsselung nach Diensten
+  // Sheet: Aufschlüsselung nach Diensten
   // -------------------------------------------------------------
   if (metrics.byService && Object.keys(metrics.byService).length > 0) {
     const sheet3Data = [];
@@ -400,10 +757,11 @@ async function exportMasterExcel({ invoicesDir, records = [], metrics = {} }) {
       { wch: 18 },
       { wch: 20 }
     ];
-    XLSX.utils.book_append_sheet(workbook, ws3, 'Dienste');
+    const servicesSheetName = sanitizeSheetName('Dienste', existingSheetNames);
+    XLSX.utils.book_append_sheet(workbook, ws3, servicesSheetName);
   }
 
-  // Write .XLS (BIFF8 binary) and .XLSX
+  // Write .XLS and .XLSX
   XLSX.writeFile(workbook, xlsPath, { bookType: 'biff8' });
   XLSX.writeFile(workbook, xlsxPath, { bookType: 'xlsx' });
 
@@ -413,5 +771,8 @@ async function exportMasterExcel({ invoicesDir, records = [], metrics = {} }) {
 module.exports = {
   exportServiceExcel,
   exportMasterExcel,
-  groupByMonth
+  groupByMonth,
+  groupByCategory,
+  resolveCategory,
+  sortRecords
 };

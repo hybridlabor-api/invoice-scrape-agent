@@ -44,6 +44,7 @@ class EmailBaseService extends BaseService {
    * Email scrapers combine scan and fetch because fetching from IMAP is fast.
    */
   async fetch({ all = false, year = null, startDate = null, endDate = null, limit = null, headless = true } = {}) {
+    this.abortRequested = false;
     const currentYear = year || new Date().getFullYear().toString();
     console.log(`\n🔍 [${this.displayName}] Scanning & Fetching emails for year ${currentYear}...`);
     
@@ -58,7 +59,12 @@ class EmailBaseService extends BaseService {
       const folders = this.imapConfig.folders || ['INBOX'];
 
       for (const folder of folders) {
+        if (this.abortRequested) break;
         for await (const message of this.imapService.searchAndFetch(criteria, folder)) {
+          if (this.abortRequested) {
+            console.log('🛑 Email Download abgebrochen.');
+            break;
+          }
           if (limit && downloaded >= limit) break;
           
           const record = await this.processEmailMessage(message.parsed, message.uid);

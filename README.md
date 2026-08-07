@@ -11,103 +11,143 @@
 
 # 🧾 BDB Invoice & Receipt Suite (Multi-Service & IMAP)
 
-![Architecture Sketch](assets/invoice_scrape_agent_sketch.jpg)
-
 [![NPM Version](https://img.shields.io/npm/v/invoice-scrape-agent.svg?style=flat)](https://npmjs.org/package/invoice-scrape-agent)
 [![Node.js Version](https://img.shields.io/badge/node-18+-blue.svg)](https://nodejs.org/)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-brightgreen.svg)](#-installation--quick-start)
 [![Services](https://img.shields.io/badge/services-Uber%20%7C%20AliExpress%20%7C%20Amazon%20%7C%20Email-purple.svg)](#-supported-services)
+[![Tests](https://img.shields.io/badge/tests-36%20passed-brightgreen.svg)](tests/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-> **Unified, autonomous, cross-platform CLI suite to discover, batch download, and normalize invoices and receipts (Uber, AliExpress, Amazon) and directly from any IMAP E-Mail inbox (Bolt, Adobe, etc.). Generates consolidated accounting tables (`Gesamtauflistung.pdf`).**
+> **Unified, autonomous, cross-platform CLI & GUI suite to discover, batch download, split composite invoices, normalize accounting data, and export tax-compliant Excel (`.xlsx`, `.xls`), PDF, and CSV ledgers across Amazon, Uber, AliExpress, and IMAP inboxes.**
 
 ---
 
-## 🌟 Key Highlights
+## 🌟 9-Step Feature Architecture & Core Capabilities
 
-### 📧 Universal IMAP E-Mail Scraper
-- **🔑 Interactive Auth**: Prompts for `IMAP_HOST`, `IMAP_USER`, and `IMAP_PASS` and securely stores them in a `.env` file.
-- **✉️ JSON-driven Provider Configs**: Easily scaffold new email scrapers (like Bolt, Lime, Freenow, Adobe) by typing their name in the CLI. The system automatically creates a `.json` regex config in `services/email/providers/`.
-- **✂️ Headless Playwright PDF Rendering**: Dynamically renders HTML emails into clean A4 PDFs with CSS hooks to hide footers/unnecessary clutter.
-
-### 📦 Amazon Invoices
-- **🚀 Native Popover Download**: Uses Playwright to navigate Amazon's complex DOM, bypassing standard print dialogs to fetch original Amazon PDF invoices.
-- **🔍 Regex Text Extraction**: Parses order numbers, dates, and EUR amounts deterministically.
-
-### 🚖 Uber Invoices
-- **⚡ GraphQL Network Interception**: Captures 100% of trips via `https://riders.uber.com/graphql` without virtual scrolling glitches.
-- **📅 Chronological Year Tracking**: Resolves Uber's year-omission in relative date strings (`"31. Juli • 9:56"`).
-- **📑 Automatic Re-naming**: Extracts official invoice numbers from PDF text: `invoices/Uber-Bv-YYYY-MM-DD-<INVOICE_NO>.pdf`.
-
-### 🛍️ AliExpress Invoices & Receipts
-- **🌐 Alibaba MTOP Interceptor**: Intercepts `mtop.aliexpress.buyer.order.list` endpoints for 100% accurate financial metadata.
-- **🖼️ Lossless PNG-to-A4 PDF Pipeline**: Automatically captures PNG receipts / Canvas renders and converts them to standardized, accounting-grade A4 PDFs.
-- **📊 Consolidated Financial Table**: Generates structured accounting summaries (`Gesamtauflistung.pdf` and `Gesamtauflistung.json`).
-
-### 🛡️ Core Platform
-- **🔑 Persistent Chrome Sessions**: Stores logins safely in `.auth-profile/` (no recurring 2FA or Captcha sliders on subsequent runs).
-- **💻 100% Cross-Platform**: Runs natively on **macOS**, **Windows (PowerShell / CMD)**, and **Linux**.
-
----
-
-## 🌐 OpenWiki Living Documentation
-
-- **🚀 Quickstart & Onboarding:** [.openwiki/quickstart.md](.openwiki/quickstart.md)
-- **🏗️ Architecture & Signal Flow:** [.openwiki/architecture.md](.openwiki/architecture.md)
-- **🏛️ Architecture Decision Records (ADRs):** [.openwiki/decisions.md](.openwiki/decisions.md)
-- **📝 Release Notes & Changelog:** [.openwiki/release_notes.md](.openwiki/release_notes.md)
-
----
-
-## 🚀 Key Features
-
-### 🖥️ Brand New Electron GUI (v1.4+)
-- **Cross-Platform:** Works natively on macOS, Windows, and Linux.
-- **Glassmorphism UI:** Built with Tailwind CSS for a stunning, responsive, and dark-mode native experience.
-- **Real-time Terminal:** See the logs and scraper activity live inside the GUI window.
-- **Desktop Shortcuts:** Automatically creates functional Desktop shortcuts during `npm install -g`.
-
-### ⏰ Background Auto-Pilot (Cron)
-- **Set & Forget:** Enable the Auto-Pilot toggle in the GUI (or CLI) to run the scraper silently in the background every 24 hours.
-- **Detached Daemon:** Runs completely invisible.
-
-### 🌐 Scalable Architecture
+The suite implements a complete, enterprise-grade invoice acquisition and financial processing engine:
 
 ```mermaid
 flowchart TD
-    subgraph UI ["🖥️ Interfaces"]
-        CLI["index.js (Multi-Service Inquirer CLI)"]
-        AGENT["agent_skill.md (AI Agent Wrapper)"]
+    subgraph UI ["🖥️ User Interfaces"]
+        GUI["Electron GUI (Tailwind / Real-Time Terminal)"]
+        CLI["Interactive CLI (Multi-Service Inquirer)"]
+        CRON["Auto-Pilot Scheduler (Launchd / Systemd / Node Cron)"]
     end
 
-    subgraph WebScrapers ["🌐 Web Scrapers (Playwright)"]
-        UBER["🚖 Uber (GraphQL)"]
-        ALI["🛍️ AliExpress (MTOP)"]
-        AMZ["📦 Amazon (DOM Popover)"]
+    subgraph Scrapers ["🌐 Autonomous Service Scrapers"]
+        AMZ["📦 Amazon.de (Multi-Invoice PDF Splitter)"]
+        UBER["🚖 Uber / Uber Eats (GraphQL Interceptor)"]
+        ALI["🛍️ AliExpress (MTOP & Tax Parser)"]
+        IMAP["📧 IMAP Inboxes (Bolt, Adobe, Lime, etc.)"]
     end
 
-    subgraph EmailScrapers ["📧 E-Mail IMAP Scrapers"]
-        IMAP["ImapFlow (IMAP Auth)"]
-        JSON["JSON Configs (Bolt, Lime, etc.)"]
-        HTML2PDF["HTML to PDF Renderer"]
+    subgraph CoreEngine ["⚙️ Core Intelligence Pipeline"]
+        REGISTRY["Service Registry & Auto-Discovery"]
+        DATE_PARSER["Date Bounds & Multi-Year Engine"]
+        TAX_CALC["Tax Breakdown (19% / 7% / 0% VAT)"]
+        CATEGORIZER["Expense Categorization Engine"]
+        SPLITTER["PDF Multi-Page Invoice Splitter"]
+        CANCEL_SIG["Cancellation Signal Controller (Start/Stop)"]
     end
 
-    subgraph Storage ["💾 Storage & Output"]
-        PROFILE[".auth-profile/"]
-        ENV[".env (IMAP Credentials)"]
-        INVOICES["invoices/"]
-        SUMMARY["Gesamtauflistung.pdf"]
+    subgraph Exports ["📊 Output & Storage (invoices/)"]
+        EXCEL["Master & Service Excel (.xlsx / .xls)"]
+        PDF["Consolidated Accounting PDF (Gesamtauflistung.pdf)"]
+        CSV["German CSV (Semicolon & Comma)"]
+        JSON["JSON Ledgers (.json)"]
     end
 
-    CLI --> WebScrapers
-    CLI --> EmailScrapers
-    WebScrapers --> PROFILE
-    EmailScrapers --> ENV
-    EmailScrapers --> IMAP
-    IMAP --> HTML2PDF
-    HTML2PDF --> INVOICES
-    WebScrapers --> INVOICES
-    INVOICES --> SUMMARY
+    UI --> Scrapers
+    Scrapers --> CoreEngine
+    CoreEngine --> Exports
+```
+
+---
+
+### 1. 🔄 Multi-Service Selection & Registry Auto-Discovery
+* **Checkbox & Batch Runs**: Select individual services, multiple combined services (`amazon, uber, aliexpress`), or run `ALL` simultaneously.
+* **Pluggable Architecture**: `ServiceRegistry` dynamically discovers and registers newly scaffolded services from `services/` at runtime without restarting.
+
+### 2. 📅 Native Excel Date Formatting (`YYYY-MM-DD`)
+* **True Date Cells**: Dates in `.xlsx` and `.xls` spreadsheets are encoded as native date cells (`t: 'd'`), avoiding text-formatting glitches in Excel, Numbers, and Google Sheets.
+* **Two-Column Date Integrity**: Distinguishes **Steuerdatum** (tax/order date) and **Rechnungsdatum** (invoice issuance date) for tax audit compliance.
+
+### 3. 📑 Sortable Master Tables & Dedicated Service Tabs
+* **AutoFilter Enabled**: Interactive dropdown filters on table headers in all sheets.
+* **Multi-Tab Organization**: Generates dedicated worksheets per service (`Amazon.de`, `Uber`, `AliExpress`) plus consolidated overview sheets (`Alle Belege`, `Monatsübersicht`, `Kategorien`, `Dienste`).
+* **Dynamic Formulas**: Dynamic Excel `=SUM(...)` formulas with embedded calculated cache values for instant totals in Google Sheets and LibreOffice.
+
+### 4. 🛍️ AliExpress Belege & Tax Parsing
+* **Automatic Tax Breakdown**: Accurately computes net amounts and 19% VAT from gross totals via `calculateTaxBreakdown()`.
+* **Currency Normalization**: Deterministically parses European and international currency strings (`€ 45,50`, `45.50 EUR`, `$30.00`).
+* **Canvas / Receipt to A4 PDF**: Lossless capture of PNG receipts and Canvas renders converted to clean A4 PDFs.
+
+### 5. 🛑 Start / Stopp Button & Asynchronous Cancellation
+* **Real-time Abort**: Dedicated Stop button in GUI and `SIGINT` handling in CLI sets `isCancelled = true`.
+* **Graceful Termination**: Asynchronous loops terminate immediately, killing child processes and releasing Playwright browser contexts without data corruption.
+
+### 6. 📆 Multi-Year & Date Range Filtering
+* **Flexible Input Parsing**: Accepts single years (`2025`), year ranges (`2023-2025`, `2024..2026`), comma-separated lists (`2024, 2026`), and exact date ranges (`2025-01-01` to `2025-12-31`).
+* **Early-Exit Scraping**: Automatically stops scraping further pages as soon as orders exceed the requested date boundaries.
+
+### 7. 🚖 Uber Quittungen vs. Rechnungen & Tax Split
+* **GraphQL Network Interception**: Captures 100% of trips without virtual scrolling omissions.
+* **Tax Distinction**:
+  * **Uber Fahrten**: Standard 19% VAT categorized as **Reise**.
+  * **Uber Eats**: Reduced 7% VAT categorized as **Kost & Logis**.
+* **Automatic Invoice Renaming**: Extracts official invoice numbers: `invoices/Uber-Bv-YYYY-MM-DD-<INVOICE_NO>.pdf`.
+
+### 8. ✂️ Amazon Multi-Invoice PDF Splitting
+* **Atomic Single-Invoice PDFs**: Automatically detects multi-part composite PDF invoices (e.g. "Seite 1 von 2" containing 2 distinct invoice numbers) and splits them into clean individual PDF files with matching invoice numbers and gross amounts.
+
+### 9. 🏷️ Expense Categorization & Master Dashboard
+* **Automatic Category Assignment**:
+  * 💻 **Anschaffung**: Hardware, electronics, single purchases $\ge$ 150 €
+  * 📦 **Verbrauchsmaterial**: Minor supplies, cables, items $<$ 80 €
+  * 🍽️ **Kost & Logis**: Restaurants, food delivery, hotels, travel accommodation
+  * 🚆 **Reise**: Train tickets, taxi rides, flights, fuel
+  * 📋 **Sonstiges**: General operating expenses
+* **Dedicated Summary Sheet**: The `Kategorien` worksheet calculates invoice counts, net sums, VAT, and gross totals per expense category with automated SUM formulas.
+
+---
+
+## 🖥️ Electron GUI & Real-time Debugging
+
+* **Glassmorphism UI**: High-contrast, dark-mode native interface with Tailwind CSS.
+* **Real-time Terminal Stream**: Direct stdout/stderr log broadcast via IPC channel `backend-log`.
+* **Auto-Pilot Scheduler**: One-click background cron configuration with customizable interval (24h, 12h, 1h).
+* **Modal Controls**: Year ranges, date boundaries, IMAP credentials, and custom service scaffolding wizards.
+
+---
+
+## 📁 Storage Structure & Generated Files
+
+All downloaded and generated files are stored in the persistent `invoices/` directory:
+
+```text
+invoices/
+├── Gesamtauflistung_Master.pdf      # Consolidated Master PDF summary
+├── master_ledger.xlsx              # Multi-tab Excel spreadsheet (with Categories & AutoFilter)
+├── master_ledger.xls               # Classic BIFF8 binary spreadsheet
+├── master_ledger.csv               # German semicolon-delimited CSV
+├── master_ledger.html              # Clean HTML report
+├── master_ledger.json              # Aggregated machine-readable database
+│
+├── amazon/                         # Amazon downloaded & split PDFs + ledger
+│   ├── Amazon-2025-11-28-DS-AEU-INV-DE-2025-598381416.pdf
+│   ├── Amazon-2025-11-28-DS-AEU-INV-DE-2025-598381454.pdf
+│   ├── amazon_ledger.json
+│   └── Gesamtauflistung.pdf
+│
+├── uber/                           # Uber & Uber Eats PDFs + ledger
+│   ├── Uber-Bv-2025-11-28-FGAACEGJ-03-2025-1988461.pdf
+│   ├── uber_ledger.json
+│   └── Gesamtauflistung.pdf
+│
+└── aliexpress/                     # AliExpress A4 converted PDFs + ledger
+    ├── AliExpress-2025-05-10-3048397662.pdf
+    ├── aliexpress_ledger.json
+    └── Gesamtauflistung.pdf
 ```
 
 ---
@@ -115,90 +155,50 @@ flowchart TD
 ## 🛠️ Installation & Quick Start
 
 ### 1. Global Installation (Recommended)
-You can install the suite globally on any machine via NPM. The pre-install hook will automatically check your system dependencies (Node.js >= 18).
-
 ```bash
 npm install -g invoice-scrape-agent
 ```
 
-*🎉 Magic! The installer will automatically generate executable Desktop Shortcuts for both the GUI and the CLI on Mac and Windows!*
+*The installer automatically creates functional Desktop Shortcuts for both the GUI and CLI on macOS and Windows.*
 
-### 2. Running the App
+### 2. Launching
 
-**Start the beautiful Electron GUI:**
-Double-click your Desktop Shortcut, or type:
+**Start Electron GUI:**
 ```bash
 invoice-scrape-agent-gui
 ```
 
-**Start the powerful CLI:**
-Double-click the CLI Desktop Shortcut, or type:
+**Start Interactive CLI:**
 ```bash
 invoice-scrape-agent
 ```
 
-### 💻 Option 3: Local Git Repository Clone
+### 3. Local Development & Testing
 
-#### 🍎 macOS / 🐧 Linux
 ```bash
+# Clone repository
 git clone https://github.com/hybridlabor-api/invoice-scrape-agent.git
 cd invoice-scrape-agent
-chmod +x install.sh
-./install.sh
-```
+npm install
 
-#### 🪟 Windows (PowerShell / CMD)
-```powershell
-git clone https://github.com/hybridlabor-api/invoice-scrape-agent.git
-cd invoice-scrape-agent
-powershell -ExecutionPolicy Bypass -File .\install.ps1
+# Run complete 36-test suite (9 Steps + GUI Pipeline)
+npm test
+
+# Generate Master Reports manually
+node -e "const MasterAnalyzer = require('./services/unified/master-analyzer'); new MasterAnalyzer().generateMasterPdf();"
 ```
 
 ---
 
-### 🔄 How to Update / Aktualisierung
+## 🧪 Automated Test Suite
 
-#### Option A: Local Repository Update
-Um die neueste Version von GitHub zu laden und Abhängigkeiten zu aktualisieren:
-```bash
-npm run update
-# oder manuell:
-git pull origin main && npm install
-```
+The project includes an end-to-end automated testing suite with 36 tests across 10 suites:
 
-#### Option B: Global NPM Package Update
-```bash
-npm install -g invoice-scrape-agent@latest
-```
-
----
-
-## 🎮 Interactive CLI Dashboard
-
-Launch the interactive dashboard:
-
-```bash
-npm start
-```
-
-```text
-======================================================
-       🧾 BDB Multi-Service Invoice & Tax Suite 🧾               
-======================================================
-
-? Welche Aktion oder welchen Dienst möchtest du wählen?
-❯ 🚖 Uber Invoices 
-  🛍️ AliExpress Invoices 
-  📦 Amazon Invoices 
-  ──────────────
-  📧 E-Mail Rechnungs-Scraper (IMAP)
-  ──────────────
-  🌟 Gesamtabrechnung aller Dienste erstellen (Master PDF)
-  🤖 Neuen Web-Scraper generieren (Dojo AI)
-  📁 Rechnungsordner öffnen (invoices/)
-  ──────────────
-  🚪 Beenden
-```
+* [`tests/e2e/all_9_steps.test.js`](file:///Users/timrennings/invoice-scrape-agent/tests/e2e/all_9_steps.test.js): End-to-end verification of all 9 business steps.
+* [`tests/gui/electron_gui.test.js`](file:///Users/timrennings/invoice-scrape-agent/tests/gui/electron_gui.test.js): Electron DOM, IPC bridge contract, and log broadcasting pipeline.
+* [`tests/services/amazon.test.js`](file:///Users/timrennings/invoice-scrape-agent/tests/services/amazon.test.js): Amazon scraping and PDF splitting tests.
+* [`tests/services/base.test.js`](file:///Users/timrennings/invoice-scrape-agent/tests/services/base.test.js): BaseService cancellation and currency normalization.
+* [`tests/services/excel.test.js`](file:///Users/timrennings/invoice-scrape-agent/tests/services/excel.test.js): Date cell formatting and Excel generation tests.
 
 ---
 

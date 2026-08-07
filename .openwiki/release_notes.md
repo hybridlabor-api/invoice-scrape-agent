@@ -4,6 +4,37 @@ All notable changes to **BDB Invoice & Receipt Suite** are documented in this fi
 
 ---
 
+## [1.6.0] - 2026-08-08
+
+### 🚀 Added & Enhanced (All 9 Core Steps & Full Test Suite)
+- **Step 1: Multi-Service Selection & Registry**:
+  - Interactive multi-service checkboxes in CLI and GUI for batch scraping (`amazon, uber, aliexpress`, or `ALL`).
+  - Dynamic `ServiceRegistry` auto-discovery at runtime.
+- **Step 2: Native Date Cell Formatting**:
+  - Native Excel Date cells (`t: 'd'`, `DATE_FMT = 'YYYY-MM-DD'`) for `Steuerdatum` and `Rechnungsdatum`.
+- **Step 3: Sortable Tables & Per-Service Tabs**:
+  - Interactive AutoFilter across all generated sheets.
+  - Dedicated per-service tabs (`Amazon.de`, `Uber`, `AliExpress`) and dynamic `=SUM(...)` formulas with embedded cache values.
+- **Step 4: AliExpress Tax Breakdown & Parsing**:
+  - `calculateTaxBreakdown` computes exact 19% VAT and net amounts from gross totals.
+  - Automatic currency parsing (`€ 45,50` -> `45.50`).
+- **Step 5: Start / Stopp Button & Asynchronous Cancellation**:
+  - Dedicated cancellation signal (`isCancelled`) and button in Electron GUI with graceful loop termination.
+- **Step 6: Multi-Year & Date Range Filtering**:
+  - Parser for year ranges (`2023-2025`, `2024, 2026`) and ISO date bounds (`startDate`, `endDate`).
+- **Step 7: Uber Receipt vs. Invoice Classification**:
+  - 19% VAT for rides (*Reise*) vs. 7% VAT for Uber Eats (*Kost & Logis*).
+- **Step 8: Amazon Multi-Invoice PDF Splitting**:
+  - Automated PDF parser detecting and splitting composite multi-part Amazon invoices into atomic individual PDFs.
+- **Step 9: Expense Categorization & Master Dashboard**:
+  - Automatic classification into 5 accounting categories (*Anschaffung*, *Verbrauchsmaterial*, *Kost & Logis*, *Reise*, *Sonstiges*).
+  - Dedicated `Kategorien` summary sheet in Excel.
+- **Electron GUI & Real-Time Terminal**:
+  - Live log streaming over IPC channel `backend-log`.
+  - Automated 36-test suite across 10 test suites covering all 9 steps and GUI pipelines.
+
+---
+
 ## [1.5.9] - 2026-08-07
 
 ### 🚀 Added & Fixed

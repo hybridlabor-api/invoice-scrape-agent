@@ -5,6 +5,19 @@ let isCronRunning = false;
 
 // Initialize
 async function init() {
+  // Load and display app version
+  try {
+    const version = await window.api.getVersion();
+    if (version) {
+      const titleEl = document.getElementById('app-version-title');
+      const badgeEl = document.getElementById('app-version-badge');
+      if (titleEl) titleEl.textContent = `v${version}`;
+      if (badgeEl) badgeEl.textContent = `v${version}`;
+    }
+  } catch (e) {
+    console.warn('Failed to load version:', e);
+  }
+
   services = await window.api.getServices();
   renderSidebar();
   
@@ -109,8 +122,8 @@ function renderSidebar() {
       const hasProviders = service.providers && service.providers.length > 0;
       
       const mainBtn = document.createElement('button');
-      mainBtn.className = `w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors mb-1 ${hasProviders ? 'text-slate-300 hover:bg-slate-800 hover:text-white' : 'text-slate-600 cursor-not-allowed opacity-60'}`;
-      mainBtn.innerHTML = `<span class="mr-3">📧</span> ${service.name}`;
+      mainBtn.className = `w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors mb-1 whitespace-nowrap ${hasProviders ? 'text-slate-300 hover:bg-slate-800 hover:text-white' : 'text-slate-600 cursor-not-allowed opacity-60'}`;
+      mainBtn.innerHTML = `<span class="mr-3">📧</span> <span class="truncate">${service.name}</span>`;
       
       if (hasProviders) {
         mainBtn.onclick = () => selectService({ id: service.id, name: service.name, icon: '📧' }, mainBtn);
@@ -120,8 +133,8 @@ function renderSidebar() {
       if (hasProviders) {
         service.providers.forEach(prov => {
           const btn = document.createElement('button');
-          btn.className = 'w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors pl-10 mb-1';
-          btn.innerHTML = `<span class="mr-2">${prov.icon || '📩'}</span> ${prov.name}`;
+          btn.className = 'w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors pl-10 mb-1 whitespace-nowrap';
+          btn.innerHTML = `<span class="mr-2">${prov.icon || '📩'}</span> <span class="truncate">${prov.name}</span>`;
           btn.onclick = () => selectService({ id: 'email', subId: prov.id, name: prov.name, icon: prov.icon || '📩' }, btn);
           listEl.appendChild(btn);
         });
@@ -130,8 +143,8 @@ function renderSidebar() {
       
     } else {
       const btn = document.createElement('button');
-      btn.className = 'w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors';
-      btn.innerHTML = `<span class="mr-3">${service.icon}</span> ${service.name}`;
+      btn.className = 'w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors whitespace-nowrap';
+      btn.innerHTML = `<span class="mr-3">${service.icon}</span> <span class="truncate">${service.name}</span>`;
       btn.onclick = () => selectService({ id: service.id, name: service.name, icon: service.icon }, btn);
       listEl.appendChild(btn);
     }
@@ -205,14 +218,33 @@ function logToTerminal(msg, type = 'info') {
 function setLoader(state) {
   isRunning = state;
   const loader = document.getElementById('loader');
+  const cancelBtn = document.getElementById('cancel-btn');
   if (state) {
     loader.classList.remove('hidden');
+    if (cancelBtn) {
+      cancelBtn.disabled = false;
+      cancelBtn.innerHTML = '<span>🛑</span><span>Abbrechen</span>';
+    }
     document.getElementById('action-grid').style.opacity = '0.5';
     document.getElementById('action-grid').style.pointerEvents = 'none';
   } else {
     loader.classList.add('hidden');
     document.getElementById('action-grid').style.opacity = '1';
     document.getElementById('action-grid').style.pointerEvents = 'auto';
+  }
+}
+
+async function cancelAction() {
+  const cancelBtn = document.getElementById('cancel-btn');
+  if (cancelBtn) {
+    cancelBtn.disabled = true;
+    cancelBtn.innerHTML = '<span>🛑</span><span>Bricht ab...</span>';
+  }
+  logToTerminal(`\n> Abbruch angefordert...`, 'warning');
+  try {
+    await window.api.cancelAction();
+  } catch (err) {
+    logToTerminal(`> Abbruchfehler: ${err.message}`, 'error');
   }
 }
 
@@ -230,6 +262,8 @@ async function runAction(action, directServiceId = null) {
   
   if (res.success) {
     logToTerminal(`> Completed ${action}.`, 'info');
+  } else if (res.aborted) {
+    logToTerminal(`> ${action} wurde abgebrochen.`, 'warning');
   } else {
     logToTerminal(`> Failed: ${res.error}`, 'error');
   }
@@ -259,7 +293,11 @@ async function executeDownloadYear() {
   
   const res = await window.api.runAction({ serviceId: activeService.id, action: 'download_year', params });
   
-  if (!res.success) logToTerminal(`> Failed: ${res.error}`, 'error');
+  if (res.aborted) {
+    logToTerminal(`> Download für ${year} abgebrochen.`, 'warning');
+  } else if (!res.success) {
+    logToTerminal(`> Failed: ${res.error}`, 'error');
+  }
   setLoader(false);
 }
 
@@ -289,7 +327,11 @@ async function executeDownloadRange() {
   
   const res = await window.api.runAction({ serviceId: activeService.id, action: 'download_range', params });
   
-  if (!res.success) logToTerminal(`> Failed: ${res.error}`, 'error');
+  if (res.aborted) {
+    logToTerminal(`> Download für Zeitraum ${startDate} bis ${endDate} abgebrochen.`, 'warning');
+  } else if (!res.success) {
+    logToTerminal(`> Failed: ${res.error}`, 'error');
+  }
   setLoader(false);
 }
 

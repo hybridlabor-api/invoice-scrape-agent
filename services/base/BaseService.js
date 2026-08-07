@@ -35,6 +35,10 @@ class BaseService {
       this.ledgerFile = getLedgerFile(this.id);
     }
 
+    this.abortRequested = false;
+    this.currentContext = null;
+    this.currentChild = null;
+
     this.ensureDirectories();
   }
 
@@ -89,6 +93,7 @@ class BaseService {
     const completeRecord = {
       service: this.id,
       serviceDisplayName: this.displayName,
+      category: record.category || this.resolveCategory(record),
       updatedAt: new Date().toISOString(),
       ...record
     };
@@ -99,6 +104,49 @@ class BaseService {
       ledger.push(completeRecord);
     }
     this.saveLedger(ledger);
+  }
+
+  /**
+   * Determine default expense category: Anschaffung, Verbrauchsmaterial, Kost & Logis, Reise, Sonstiges
+   */
+  resolveCategory(record = {}) {
+    if (record.category && String(record.category).trim()) {
+      return String(record.category).trim();
+    }
+    const srv = (this.id || record.service || record.serviceDisplayName || '').toLowerCase();
+    const seller = (record.seller || record.store || record.anbieter || '').toLowerCase();
+
+    if (srv.includes('hotel') || srv.includes('airbnb') || srv.includes('booking') || srv.includes('eats') || srv.includes('lieferando') || srv.includes('restaurant') || seller.includes('hotel') || seller.includes('restaurant') || seller.includes('cafe') || seller.includes('bäckerei') || seller.includes('eats') || seller.includes('food')) {
+      return 'Kost & Logis';
+    }
+
+    if (srv.includes('uber') || srv.includes('bolt') || srv.includes('taxi') || srv.includes('bahn') || srv.includes('flight') || srv.includes('lufthansa') || seller.includes('uber') || seller.includes('bolt') || seller.includes('taxi') || seller.includes('deutsche bahn')) {
+      return 'Reise';
+    }
+
+    if (srv.includes('apple') || srv.includes('cyberport') || srv.includes('saturn') || srv.includes('mediamarkt') || (record.brutto && record.brutto >= 150)) {
+      return 'Anschaffung';
+    }
+
+    if (srv.includes('aliexpress') || srv.includes('amazon')) {
+      if (record.brutto && record.brutto < 80) {
+        return 'Verbrauchsmaterial';
+      }
+      return 'Anschaffung';
+    }
+
+    return 'Sonstiges';
+  }
+
+  log(msg, type = 'info') {
+    const prefix = `[${this.displayName || this.id}]`;
+    if (type === 'error') {
+      console.error(`${prefix} ❌ ${msg}`);
+    } else if (type === 'warn') {
+      console.warn(`${prefix} ⚠️ ${msg}`);
+    } else {
+      console.log(`${prefix} ${msg}`);
+    }
   }
 
   /**
@@ -194,6 +242,10 @@ class BaseService {
     return parseFloat(str) || 0;
   }
 
+  parseAmount(rawAmount) {
+    return this.parseCurrency(rawAmount);
+  }
+
   /**
    * Launch stealth browser with persistent authentication context.
    * @param {Object} [options]
@@ -240,7 +292,59 @@ class BaseService {
       Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
     });
 
+    this.currentContext = context;
+    context.on('close', () => {
+      if (this.currentContext === context) {
+        this.currentContext = null;
+      }
+    });
+
     return context;
+  }
+
+  get isCancelled() {
+    return Boolean(this.abortRequested);
+  }
+
+  /**
+   * Calculate exact tax breakdown from gross amount and tax rate.
+   * @param {Object} params
+   * @param {number} params.brutto
+   * @param {string} [params.taxRate]
+   * @returns {{ netto: number, ust: number, taxRate: string, brutto: number }}
+   */
+  calculateTaxBreakdown({ brutto = 0, taxRate = '19%' }) {
+    const rateNum = parseFloat(String(taxRate).replace('%', '')) / 100;
+    if (isNaN(rateNum) || rateNum <= 0) {
+      return {
+        netto: Number(Number(brutto || 0).toFixed(2)),
+        ust: 0.00,
+        taxRate: '0%',
+        brutto: Number(Number(brutto || 0).toFixed(2))
+      };
+    }
+    const netto = Number((brutto / (1 + rateNum)).toFixed(2));
+    const ust = Number((brutto - netto).toFixed(2));
+    return { netto, ust, taxRate, brutto: Number(Number(brutto).toFixed(2)) };
+  }
+
+  /**
+   * Cancel any active operation, child process or browser context.
+   */
+  cancel() {
+    this.abortRequested = true;
+    if (this.currentChild) {
+      try {
+        this.currentChild.kill('SIGTERM');
+      } catch (e) {}
+    }
+    if (this.currentContext) {
+      try {
+        this.currentContext.close().catch(() => {});
+      } catch (e) {}
+      this.currentContext = null;
+    }
+    console.log(`🛑 [${this.displayName || this.id}] Vorgang wurde abgebrochen.`);
   }
 
   /* Abstract lifecycle methods to be overridden by subclasses */

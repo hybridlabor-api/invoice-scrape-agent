@@ -12,29 +12,49 @@ class UberService extends BaseService {
       authUrl: 'https://riders.uber.com/',
       ...config
     });
+    this.currentChild = null;
+  }
+
+  _runForked(scriptPath, args = []) {
+    return new Promise((resolve, reject) => {
+      const child = fork(scriptPath, args, {
+        stdio: ['inherit', 'pipe', 'pipe', 'ipc']
+      });
+      this.currentChild = child;
+
+      if (child.stdout) {
+        child.stdout.on('data', (data) => {
+          process.stdout.write(data);
+        });
+      }
+      if (child.stderr) {
+        child.stderr.on('data', (data) => {
+          process.stderr.write(data);
+        });
+      }
+
+      child.on('exit', (code) => {
+        this.currentChild = null;
+        resolve(code);
+      });
+      child.on('error', (err) => {
+        this.currentChild = null;
+        reject(err);
+      });
+    });
   }
 
   async authenticate({ headless = false } = {}) {
-    return new Promise((resolve, reject) => {
-      const authScript = path.join(__dirname, 'auth.js');
-      const child = fork(authScript, [], { stdio: 'inherit' });
-      child.on('exit', (code) => {
-        if (code === 0) resolve({ success: true });
-        else resolve({ success: false, code });
-      });
-      child.on('error', reject);
-    });
+    const authScript = path.join(__dirname, 'auth.js');
+    const code = await this._runForked(authScript, []);
+    return { success: code === 0, code };
   }
 
   async scan(options = {}) {
     console.log(`\n🔍 [Uber] Scanne Fahrten und Aktivitäten...`);
-    // Run fetcher with --scan flag or dry-run
-    return new Promise((resolve, reject) => {
-      const fetcherScript = path.join(__dirname, 'fetcher.js');
-      const child = fork(fetcherScript, ['--scan'], { stdio: 'inherit' });
-      child.on('exit', () => resolve(this.loadLedger()));
-      child.on('error', reject);
-    });
+    const fetcherScript = path.join(__dirname, 'fetcher.js');
+    await this._runForked(fetcherScript, ['--scan']);
+    return this.loadLedger();
   }
 
   async fetch(options = {}) {
@@ -45,28 +65,18 @@ class UberService extends BaseService {
     if (options.endDate) args.push('--end', options.endDate);
     if (options.limit) args.push('--limit', String(options.limit));
 
-    return new Promise((resolve, reject) => {
-      const fetcherScript = path.join(__dirname, 'fetcher.js');
-      const child = fork(fetcherScript, args, { stdio: 'inherit' });
-      child.on('exit', (code) => {
-        const ledger = this.loadLedger();
-        resolve({ downloaded: ledger.length, success: code === 0 });
-      });
-      child.on('error', reject);
-    });
+    const fetcherScript = path.join(__dirname, 'fetcher.js');
+    const code = await this._runForked(fetcherScript, args);
+    const ledger = this.loadLedger();
+    return { downloaded: ledger.length, success: code === 0 };
   }
 
   async analyze() {
-    return new Promise((resolve, reject) => {
-      const analyzerScript = path.join(__dirname, 'analyzer.js');
-      const child = fork(analyzerScript, [], { stdio: 'inherit' });
-      child.on('exit', (code) => {
-        const ledger = this.loadLedger();
-        const totalBrutto = ledger.reduce((s, i) => s + (i.brutto || 0), 0);
-        resolve({ count: ledger.length, totalBrutto, success: code === 0 });
-      });
-      child.on('error', reject);
-    });
+    const analyzerScript = path.join(__dirname, 'analyzer.js');
+    const code = await this._runForked(analyzerScript, []);
+    const ledger = this.loadLedger();
+    const totalBrutto = ledger.reduce((s, i) => s + (i.brutto || 0), 0);
+    return { count: ledger.length, totalBrutto, success: code === 0 };
   }
 }
 

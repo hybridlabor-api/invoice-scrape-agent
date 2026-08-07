@@ -45,7 +45,10 @@
   
   <!-- Titlebar -->
   <div class="h-10 w-full flex items-center px-4 titlebar-drag z-50 justify-between">
-    <div class="ml-16 font-semibold text-sm tracking-wide text-slate-400">BDB Invoice Suite</div>
+    <div class="ml-16 font-semibold text-sm tracking-wide text-slate-400 flex items-center space-x-2">
+      <span>BDB Invoice Suite</span>
+      <span id="app-version-title" class="text-xs font-mono text-slate-500 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700/50"></span>
+    </div>
     
     <!-- Cron Toggle -->
     <div class="no-drag flex items-center space-x-3 pr-4">
@@ -58,12 +61,15 @@
 
   <div class="flex flex-1 overflow-hidden">
     <!-- Sidebar -->
-    <div class="w-72 flex-shrink-0 border-r border-slate-800 flex flex-col no-drag">
+    <div class="w-80 flex-shrink-0 border-r border-slate-800 flex flex-col no-drag">
       <div class="p-5 border-b border-rose-500/20 flex items-center space-x-3">
         <img src="../../assets/icon_black.png" class="w-8 h-8 object-contain" alt="Logo">
         <div>
           <h2 class="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-indigo-400 mb-1">Invoice Scraper</h2>
-          <div class="text-[10px] uppercase tracking-widest text-rose-400/80 font-bold">BDB AI Agent</div>
+          <div class="flex items-center space-x-2">
+            <span class="text-[10px] uppercase tracking-widest text-rose-400/80 font-bold">BDB AI Agent</span>
+            <span id="app-version-badge" class="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/20"></span>
+          </div>
         </div>
       </div>
       <div class="p-4 pb-2">
@@ -74,25 +80,25 @@
       </div>
       <div class="p-4 mt-auto">
         <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Tools</h2>
-        <button onclick="window.api.openInvoices()" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1">
+        <button onclick="window.api.openInvoices()" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1 whitespace-nowrap">
           <span class="mr-3">📁</span> Open Invoices
         </button>
-        <button onclick="showModal('imap-modal')" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1">
+        <button onclick="showModal('imap-modal')" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1 whitespace-nowrap">
           <span class="mr-3">🔑</span> IMAP Credentials
         </button>
-        <button onclick="showModal('email-modal')" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1">
+        <button onclick="showModal('email-modal')" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1 whitespace-nowrap">
           <span class="mr-3">📧</span> New Email Scraper
         </button>
-        <button onclick="runAction('master_report', 'master_report')" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1">
-          <span class="mr-3">🌟</span> Master Export (PDF, Excel, CSV)
+        <button onclick="runAction('master_report', 'master_report')" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1 whitespace-nowrap">
+          <span class="mr-3">🌟</span> <span class="whitespace-nowrap">Master Export (Excel, PDF)</span>
         </button>
-        <button onclick="toggleCron()" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1">
+        <button onclick="toggleCron()" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1 whitespace-nowrap">
           <span class="mr-3">⏰</span> Configure Auto-Pilot
         </button>
-        <button onclick="showModal('scraper-modal')" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1">
+        <button onclick="showModal('scraper-modal')" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1 whitespace-nowrap">
           <span class="mr-3">🤖</span> New Web Scraper
         </button>
-        <button onclick="executeAppUpdate()" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
+        <button onclick="executeAppUpdate()" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors whitespace-nowrap">
           <span class="mr-3">🔄</span> Update via NPM
         </button>
       </div>
@@ -159,8 +165,12 @@
           </div>
           <span class="ml-3 text-xs text-slate-500 font-mono">system.log</span>
           
-          <!-- Loader (Hidden by default) -->
-          <div id="loader" class="ml-auto hidden">
+          <!-- Loader & Cancel (Hidden by default) -->
+          <div id="loader" class="ml-auto hidden flex items-center space-x-2">
+            <button id="cancel-btn" onclick="cancelAction()" class="px-2.5 py-0.5 rounded bg-rose-600/90 hover:bg-rose-600 text-xs text-white font-medium flex items-center space-x-1 transition-colors shadow">
+              <span>🛑</span>
+              <span>Abbrechen</span>
+            </button>
             <svg class="animate-spin h-4 w-4 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>

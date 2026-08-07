@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   getServices: () => ipcRenderer.invoke('get-services'),
   runAction: (data) => ipcRenderer.invoke('run-action', data),
+  cancelAction: () => ipcRenderer.invoke('cancel-action'),
   onLog: (callback) => ipcRenderer.on('backend-log', (event, data) => callback(data)),
   openInvoices: () => ipcRenderer.invoke('open-invoices'),
   saveImap: (data) => ipcRenderer.invoke('save-imap', data),
@@ -15,6 +16,7 @@ contextBridge.exposeInMainWorld('api', {
   getCronStatus: () => ipcRenderer.invoke('get-cron-status'),
   onCronStatusChanged: (callback) => ipcRenderer.on('cron-status-changed', (_event, value) => callback(value)),
   
-  // App Update
+  // App Info & Update
+  getVersion: () => ipcRenderer.invoke('get-app-version'),
   updateApp: () => ipcRenderer.invoke('update-app')
 });
