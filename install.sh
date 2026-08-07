@@ -40,26 +40,10 @@ else
 fi
 
 # Prompt for environment variables
-echo ""
-echo -e "${BLUE}[*] Configuring Environment Variables...${NC}"
+# Interactive Setup via node (Inquirer & Auth)
+echo -e "${BLUE}[*] Starting Interactive Setup...${NC}"
+node setup.js
 
-# Gemini API Key
-echo ""
-echo -e "${YELLOW}Please enter your GEMINI_API_KEY (used for AI analysis):${NC}"
-read -p "> " GEMINI_API_KEY
-
-# Write to .env
-ENV_FILE=".env"
-echo -e "${BLUE}[*] Writing to ${ENV_FILE}...${NC}"
-
-cat > "$ENV_FILE" << EOF
-GEMINI_API_KEY="$GEMINI_API_KEY"
-EOF
-
-# Uber Auto-Login Cookie Extraction
-echo ""
-echo -e "${YELLOW}[*] Wir starten nun den automatischen Uber-Login...${NC}"
-node auth.js
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}[+] Configuration saved to ${ENV_FILE}.${NC}"
