@@ -121,6 +121,77 @@ class MasterAnalyzer {
   }
 
   /**
+   * Export HTML (Best for Copy/Paste to Excel/Numbers)
+   */
+  exportHtml(records, metrics) {
+    const outputPath = path.join(this.invoicesDir, 'master_ledger.html');
+    let html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Master Ledger</title>
+<style>
+  body { font-family: sans-serif; padding: 20px; color: #333; }
+  table { border-collapse: collapse; width: 100%; margin-top: 20px; font-size: 13px; }
+  th, td { border: 1px solid #ccc; padding: 8px 12px; text-align: left; }
+  th { background-color: #102a43; color: white; }
+  tr:nth-child(even) { background-color: #f8fafc; }
+  .totals { font-weight: bold; background-color: #d9e2ec; color: #102a43; }
+  .text-right { text-align: right; }
+  h2 { color: #102a43; }
+</style>
+</head>
+<body>
+<h2>🏢 UNIFIED MASTER TAX & INVOICE LEDGER</h2>
+<p><strong>Generiert am:</strong> ${new Date().toLocaleDateString('de-DE')} | <strong>Erfasste Belege:</strong> ${records.length}</p>
+<table>
+  <thead>
+    <tr>
+      <th>Service</th>
+      <th>Steuerdatum</th>
+      <th>Rechnungsdatum</th>
+      <th>Rechnungsnummer</th>
+      <th>Anbieter</th>
+      <th class="text-right">Netto (€)</th>
+      <th class="text-right">USt (€)</th>
+      <th class="text-right">Brutto (€)</th>
+      <th>Steuersatz</th>
+    </tr>
+  </thead>
+  <tbody>`;
+
+    records.forEach(r => {
+      html += `
+    <tr>
+      <td>${r.serviceDisplayName}</td>
+      <td>${r.date || '-'}</td>
+      <td>${r.invoiceDate || '-'}</td>
+      <td>${r.invoiceNumber || r.orderId || '-'}</td>
+      <td>${r.seller || '-'}</td>
+      <td class="text-right">${r.netto.toFixed(2).replace('.', ',')}</td>
+      <td class="text-right">${r.ust.toFixed(2).replace('.', ',')}</td>
+      <td class="text-right">${r.brutto.toFixed(2).replace('.', ',')}</td>
+      <td>${r.taxRate}</td>
+    </tr>`;
+    });
+
+    html += `
+    <tr class="totals">
+      <td colspan="5">GESAMT KONSOLIDIERT</td>
+      <td class="text-right">${metrics.totalNetto.toFixed(2).replace('.', ',')}</td>
+      <td class="text-right">${metrics.totalUst.toFixed(2).replace('.', ',')}</td>
+      <td class="text-right">${metrics.totalBrutto.toFixed(2).replace('.', ',')}</td>
+      <td></td>
+    </tr>
+  </tbody>
+</table>
+</body>
+</html>`;
+
+    fs.writeFileSync(outputPath, html, 'utf8');
+  }
+
+  /**
    * Generate Multi-Page Master Landscape Accounting PDF
    */
   async generateMasterPdf() {
@@ -131,6 +202,7 @@ class MasterAnalyzer {
 
     // Export CSV and JSON alongside
     this.exportCsv(records);
+    this.exportHtml(records, metrics);
     fs.writeFileSync(this.outputJson, JSON.stringify(metrics, null, 2), 'utf8');
 
     if (records.length === 0) {
@@ -248,6 +320,7 @@ class MasterAnalyzer {
     console.log(`\n🎉 [MasterAnalyzer] Master Report Ready:`);
     console.log(`   📄 PDF:  ${this.outputPdf}`);
     console.log(`   📊 CSV:  ${this.outputCsv}`);
+    console.log(`   🌐 HTML: ${path.join(this.invoicesDir, 'master_ledger.html')} (Perfect for Excel copy-paste!)`);
     console.log(`   📦 JSON: ${this.outputJson}\n`);
 
     return {
