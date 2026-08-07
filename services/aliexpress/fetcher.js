@@ -22,7 +22,7 @@ function parseArgs() {
     year: null,
     startDate: null,
     endDate: null,
-    maxPages: 50,
+    maxPages: 150,
     limit: null,
     rescan: false
   };
@@ -255,13 +255,15 @@ async function startAliExpressFetcher() {
 
         console.log(`  ✓ Scan-Schritt ${pageNum}: ${collectedOrders.size} Bestellungen erfasst.`);
 
-        if (collectedOrders.size === beforeCount) {
+        const btnExists = await viewMoreBtn.count() > 0 && await viewMoreBtn.isVisible().catch(() => false);
+        
+        if (collectedOrders.size === beforeCount && !btnExists) {
           consecutiveNoNewOrders++;
           if (consecutiveNoNewOrders >= 3) keepScanning = false;
         } else {
           consecutiveNoNewOrders = 0;
-          pageNum++;
         }
+        pageNum++;
       }
 
       allOrders = Array.from(collectedOrders.values());
