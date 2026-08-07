@@ -170,22 +170,23 @@ async function startAliExpressFetcher() {
     let consecutiveNoNewOrders = 0;
 
     while (keepScanning && pageNum <= options.maxPages) {
-      // 1. Scroll down to trigger lazy loading / render buttons
-      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      await page.waitForTimeout(1500);
-
-      // 2. Check for "View more orders" / "View orders" button
-      const viewMoreBtn = page.locator('button, [role="button"], a, div, span').filter({
-        hasText: /view (?:more )?orders|view orders|mehr anzeigen|load more|view more/i
+      // 1. Target the exact 'View orders' button without scrolling into 'More to love'
+      const viewMoreBtn = page.locator('button, [role="button"], div, span, a').filter({
+        hasText: /^View orders|^View more orders|^Mehr anzeigen/i
       }).first();
 
       let clickedViewMore = false;
       if (await viewMoreBtn.count() > 0 && await viewMoreBtn.isVisible().catch(() => false)) {
         try {
+          await viewMoreBtn.scrollIntoViewIfNeeded();
+          await page.waitForTimeout(500);
           await viewMoreBtn.click();
-          await page.waitForTimeout(2500);
+          await page.waitForTimeout(2000);
           clickedViewMore = true;
         } catch (e) {}
+      } else {
+        await page.evaluate(() => window.scrollBy(0, 600));
+        await page.waitForTimeout(1000);
       }
 
       // 3. DOM fallback extraction

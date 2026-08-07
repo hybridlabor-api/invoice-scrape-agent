@@ -132,23 +132,27 @@ async function scanAliExpressAccount() {
     let pass = 1;
     let keepScanning = true;
     let consecutiveUnchanged = 0;
-    const maxPasses = 30; // Scan up to 30 batches of orders
+    const maxPasses = 100; // Scan up to 100 batches (covers hundreds of orders)
 
     while (keepScanning && pass <= maxPasses) {
-      // Scroll to trigger rendering of buttons and cards
-      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      await page.waitForTimeout(1200);
-
-      // Check for "View more orders" button
-      const viewMoreBtn = page.locator('button, [role="button"], a, div, span').filter({
-        hasText: /view (?:more )?orders|view orders|mehr anzeigen|load more|view more|mehr bestellungen/i
+      // 1. Target the exact 'View orders' button without scrolling into 'More to love'
+      const viewMoreBtn = page.locator('button, [role="button"], div, span, a').filter({
+        hasText: /^View orders|^View more orders|^Mehr anzeigen/i
       }).first();
 
+      let clicked = false;
       if (await viewMoreBtn.count() > 0 && await viewMoreBtn.isVisible().catch(() => false)) {
         try {
+          await viewMoreBtn.scrollIntoViewIfNeeded();
+          await page.waitForTimeout(500);
           await viewMoreBtn.click();
           await page.waitForTimeout(2000);
+          clicked = true;
         } catch (e) {}
+      } else {
+        // Scroll incrementally to make the button visible if higher up
+        await page.evaluate(() => window.scrollBy(0, 600));
+        await page.waitForTimeout(1000);
       }
 
       // DOM fallback extraction
