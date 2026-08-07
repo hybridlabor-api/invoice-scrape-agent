@@ -1,184 +1,206 @@
 const fs = require('fs');
 const path = require('path');
-const pdfParse = require('pdf-parse');
+const pdf = require('pdf-parse');
 const PDFDocument = require('pdfkit');
-const { GoogleGenAI } = require('@google/genai');
-const dotenv = require('dotenv');
 
-dotenv.config();
+const INVOICE_DIR = path.join(__dirname, 'invoices');
+const OUTPUT_FILE = path.join(__dirname, 'Gesamtauflistung.pdf');
 
-if (!process.env.GEMINI_API_KEY) {
-    console.error("Error: GEMINI_API_KEY environment variable is missing.");
-    process.exit(1);
+function extractField(text, pattern) {
+    const match = text.match(pattern);
+    return match ? match[1].trim() : '';
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-const invoicesDir = path.join(process.cwd(), 'invoices');
-const outputPdfPath = path.join(process.cwd(), 'Gesamtauflistung.pdf');
+async function parseInvoice(filePath) {
+    const buffer = fs.readFileSync(filePath);
+    const data = await pdf(buffer);
+    const text = data.text;
 
-async function extractDataFromPdf(pdfPath) {
-    try {
-        const dataBuffer = fs.readFileSync(pdfPath);
-        const data = await pdfParse(dataBuffer);
-        const text = data.text;
+    const rechnungsnummer = extractField(text, /Rechnungsnummer[:\s]+([A-Z0-9]+-[A-Z0-9-]+)/i);
+    const rechnungsdatum = extractField(text, /Rechnungsdatum[:\s]+(\d{1,2}\.\d{1,2}\.\d{4})/i);
+    const steuerdatum = extractField(text, /Steuerdatum[:\s]+(\d{1,2}\.\d{1,2}\.\d{4})/i) || rechnungsdatum;
 
-        const prompt = `
-Extract the following information from the Uber invoice text below. 
-Return ONLY a raw JSON object with the keys: 
-"totalPrice" (number, representing the total price), 
-"vat" (number, representing the VAT amount), 
-"route" (string, start and end destination), 
-"date" (string, format YYYY-MM-DD), 
-"invoiceNumber" (string).
+    // Nettobetrag
+    const nettoMatch = text.match(/Gesamtnettobetrag\s+([\d.,]+)\s*€/i);
+    const netto = nettoMatch ? nettoMatch[1].replace('.', '').replace(',', '.') : '0';
 
-If a value is not found, use null.
-Do not include markdown blocks like \`\`\`json. Just output the raw JSON object.
+    // USt
+    const ustMatch = text.match(/Gesamtbetrag USt[^€]*?([\d.,]+)\s*€/i);
+    const ust = ustMatch ? ustMatch[1].replace('.', '').replace(',', '.') : '0';
 
-Text:
-${text}
-`;
+    // Bruttobetrag
+    const bruttoMatch = text.match(/Gesamtbetrag\s+([\d.,]+)\s*€/i);
+    const brutto = bruttoMatch ? bruttoMatch[1].replace('.', '').replace(',', '.') : '0';
 
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: "OBJECT",
-                    properties: {
-                        totalPrice: { type: "NUMBER", description: "Total price of the ride" },
-                        vat: { type: "NUMBER", description: "VAT amount" },
-                        route: { type: "STRING", description: "Start and end destination" },
-                        date: { type: "STRING", description: "Date of the ride (YYYY-MM-DD)" },
-                        invoiceNumber: { type: "STRING", description: "Invoice number" }
-                    },
-                    required: ["totalPrice", "vat", "route", "date", "invoiceNumber"]
-                }
-            }
-        });
+    // USt-Satz
+    const ustSatzMatch = text.match(/(\d+)%/);
+    const ustSatz = ustSatzMatch ? ustSatzMatch[1] + '%' : '19%';
 
-        const jsonStr = response.text;
-        return JSON.parse(jsonStr);
+    // Distanz
+    const distanzMatch = text.match(/Distanz[:\s]+([\d.,]+)\s*km/i);
+    const distanz = distanzMatch ? distanzMatch[1] + ' km' : '-';
 
-    } catch (error) {
-        console.error(`Error processing ${pdfPath}: `, error.message);
-        return null;
-    }
+    // Anbieter
+    const anbieterMatch = text.match(/im Namen\s*von:\s*\n?\s*(.+)/i);
+    const anbieter = anbieterMatch ? anbieterMatch[1].trim() : '';
+
+    return {
+        datei: path.basename(filePath),
+        rechnungsnummer,
+        rechnungsdatum,
+        netto: parseFloat(netto) || 0,
+        ust: parseFloat(ust) || 0,
+        brutto: parseFloat(brutto) || 0,
+        ustSatz,
+        distanz,
+        anbieter
+    };
 }
 
-async function analyzeInvoices() {
-    if (!fs.existsSync(invoicesDir)) {
-        console.error(`Invoices directory not found at ${invoicesDir}`);
-        return;
+async function run() {
+    if (!fs.existsSync(INVOICE_DIR)) {
+        console.error('❌ Kein invoices/ Ordner gefunden. Bitte erst Rechnungen herunterladen.');
+        process.exit(1);
     }
 
-    const files = fs.readdirSync(invoicesDir).filter(f => f.toLowerCase().endsWith('.pdf'));
+    const files = fs.readdirSync(INVOICE_DIR).filter(f => f.endsWith('.pdf'));
     if (files.length === 0) {
-        console.log("No PDF files found in invoices directory.");
-        return;
+        console.error('❌ Keine PDF-Dateien im invoices/ Ordner.');
+        process.exit(1);
     }
 
-    const extractedData = [];
+    console.log(`📊 Analysiere ${files.length} Rechnungen...\n`);
 
-    console.log(`Found ${files.length} invoice(s). Starting extraction...`);
+    const invoices = [];
     for (const file of files) {
-        const pdfPath = path.join(invoicesDir, file);
-        console.log(`Processing ${file}...`);
-        const data = await extractDataFromPdf(pdfPath);
-        if (data) {
-            extractedData.push(data);
-        }
-    }
-
-    if (extractedData.length === 0) {
-        console.log("No data could be extracted from the invoices.");
-        return;
-    }
-
-    // Aggregation
-    let totalSpent = 0;
-    let totalVat = 0;
-    const spendingPerMonth = {};
-
-    extractedData.forEach(item => {
-        const price = item.totalPrice || 0;
-        totalSpent += price;
-        totalVat += item.vat || 0;
-
-        if (item.date) {
-            // Extract YYYY-MM
-            const month = item.date.substring(0, 7);
-            if (!spendingPerMonth[month]) {
-                spendingPerMonth[month] = 0;
-            }
-            spendingPerMonth[month] += price;
-        }
-    });
-
-    // Generate PDF
-    await generateSummaryPdf(extractedData, totalSpent, totalVat, spendingPerMonth);
-}
-
-function generateSummaryPdf(trips, totalSpent, totalVat, spendingPerMonth) {
-    return new Promise((resolve, reject) => {
         try {
-            console.log("Generating summary PDF...");
-            const doc = new PDFDocument({ margin: 50 });
-            const writeStream = fs.createWriteStream(outputPdfPath);
-            doc.pipe(writeStream);
-
-            // Header
-            doc.fontSize(20).text('Uber Invoices Summary (Gesamtauflistung)', { align: 'center' });
-            doc.moveDown();
-
-            // Totals
-            doc.fontSize(14).text('Overall Summary', { underline: true });
-            doc.moveDown(0.5);
-            doc.fontSize(12).text(`Total Spent: ${totalSpent.toFixed(2)}`);
-            doc.text(`Total VAT: ${totalVat.toFixed(2)}`);
-            doc.moveDown();
-
-            // Monthly breakdown
-            doc.fontSize(14).text('Spending Per Month', { underline: true });
-            doc.moveDown(0.5);
-            const months = Object.keys(spendingPerMonth).sort();
-            months.forEach(month => {
-                doc.fontSize(12).text(`${month}: ${spendingPerMonth[month].toFixed(2)}`);
-            });
-            doc.moveDown();
-
-            // Trip list
-            doc.fontSize(14).text('List of Trips', { underline: true });
-            doc.moveDown(0.5);
-
-            trips.forEach((trip, index) => {
-                doc.fontSize(12).font('Helvetica-Bold').text(`Trip ${index + 1}: ${trip.date || 'Unknown Date'}`);
-                doc.font('Helvetica').text(`Invoice Number: ${trip.invoiceNumber || 'N/A'}`);
-                doc.text(`Route: ${trip.route || 'N/A'}`);
-                
-                const priceText = trip.totalPrice !== null && trip.totalPrice !== undefined ? trip.totalPrice.toFixed(2) : 'N/A';
-                const vatText = trip.vat !== null && trip.vat !== undefined ? trip.vat.toFixed(2) : 'N/A';
-                
-                doc.text(`Price: ${priceText} (VAT: ${vatText})`);
-                doc.moveDown(0.5);
-            });
-
-            doc.end();
-
-            writeStream.on('finish', () => {
-                console.log(`Summary PDF generated successfully at ${outputPdfPath}`);
-                resolve();
-            });
-
-            writeStream.on('error', (err) => {
-                console.error("Error writing PDF:", err);
-                reject(err);
-            });
-        } catch (error) {
-            console.error("Error generating PDF:", error);
-            reject(error);
+            const inv = await parseInvoice(path.join(INVOICE_DIR, file));
+            invoices.push(inv);
+            console.log(`  ✅ ${inv.rechnungsnummer} | ${inv.rechnungsdatum} | ${inv.brutto.toFixed(2)}€`);
+        } catch(e) {
+            console.log(`  ❌ ${file}: ${e.message}`);
         }
+    }
+
+    // Sort by date
+    invoices.sort((a, b) => {
+        const da = a.rechnungsdatum.split('.').reverse().join('-');
+        const db = b.rechnungsdatum.split('.').reverse().join('-');
+        return da.localeCompare(db);
     });
+
+    // Calculate totals
+    const totalNetto = invoices.reduce((s, i) => s + i.netto, 0);
+    const totalUst = invoices.reduce((s, i) => s + i.ust, 0);
+    const totalBrutto = invoices.reduce((s, i) => s + i.brutto, 0);
+
+    console.log(`\n${'─'.repeat(50)}`);
+    console.log(`Rechnungen:    ${invoices.length}`);
+    console.log(`Netto gesamt:  ${totalNetto.toFixed(2)} €`);
+    console.log(`USt gesamt:    ${totalUst.toFixed(2)} €`);
+    console.log(`Brutto gesamt: ${totalBrutto.toFixed(2)} €`);
+    console.log(`${'─'.repeat(50)}\n`);
+
+    // Generate PDF summary
+    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 30 });
+    const stream = fs.createWriteStream(OUTPUT_FILE);
+    doc.pipe(stream);
+
+    // Header
+    doc.fontSize(18).font('Helvetica-Bold').text('Uber Rechnungsübersicht', { align: 'center' });
+    doc.moveDown(0.3);
+    doc.fontSize(10).font('Helvetica').text(
+        `Erstellt am ${new Date().toLocaleDateString('de-DE')} | ${invoices.length} Rechnungen | Brutto: ${totalBrutto.toFixed(2)} €`,
+        { align: 'center' }
+    );
+    doc.moveDown(1);
+
+    // Table
+    const cols = [
+        { label: 'Nr.', width: 25 },
+        { label: 'Datum', width: 65 },
+        { label: 'Rechnungsnummer', width: 180 },
+        { label: 'Netto (€)', width: 65 },
+        { label: 'USt (€)', width: 55 },
+        { label: 'Brutto (€)', width: 65 },
+        { label: 'USt%', width: 35 },
+        { label: 'Distanz', width: 55 },
+        { label: 'Anbieter', width: 200 }
+    ];
+
+    let x = 30;
+    let y = doc.y;
+    const rowHeight = 18;
+
+    // Header row
+    doc.fontSize(8).font('Helvetica-Bold');
+    doc.rect(x, y, cols.reduce((s, c) => s + c.width, 0), rowHeight).fill('#333');
+    let cx = x;
+    for (const col of cols) {
+        doc.fillColor('#fff').text(col.label, cx + 3, y + 4, { width: col.width - 6 });
+        cx += col.width;
+    }
+    y += rowHeight;
+
+    // Data rows
+    doc.font('Helvetica').fontSize(7).fillColor('#000');
+    for (let i = 0; i < invoices.length; i++) {
+        if (y > 550) {
+            doc.addPage();
+            y = 30;
+        }
+
+        const inv = invoices[i];
+        const bg = i % 2 === 0 ? '#f5f5f5' : '#fff';
+        doc.rect(x, y, cols.reduce((s, c) => s + c.width, 0), rowHeight).fill(bg);
+        doc.fillColor('#000');
+
+        const values = [
+            (i + 1).toString(),
+            inv.rechnungsdatum,
+            inv.rechnungsnummer,
+            inv.netto.toFixed(2),
+            inv.ust.toFixed(2),
+            inv.brutto.toFixed(2),
+            inv.ustSatz,
+            inv.distanz,
+            inv.anbieter
+        ];
+
+        cx = x;
+        for (let j = 0; j < cols.length; j++) {
+            doc.text(values[j], cx + 3, y + 4, { width: cols[j].width - 6 });
+            cx += cols[j].width;
+        }
+        y += rowHeight;
+    }
+
+    // Totals row
+    y += 5;
+    doc.fontSize(9).font('Helvetica-Bold');
+    doc.rect(x, y, cols.reduce((s, c) => s + c.width, 0), rowHeight + 2).fill('#e0e0e0');
+    doc.fillColor('#000');
+    cx = x;
+    doc.text('GESAMT', cx + 3, y + 5, { width: cols[0].width + cols[1].width + cols[2].width - 6 });
+    cx += cols[0].width + cols[1].width + cols[2].width;
+    doc.text(totalNetto.toFixed(2), cx + 3, y + 5, { width: cols[3].width - 6 });
+    cx += cols[3].width;
+    doc.text(totalUst.toFixed(2), cx + 3, y + 5, { width: cols[4].width - 6 });
+    cx += cols[4].width;
+    doc.text(totalBrutto.toFixed(2), cx + 3, y + 5, { width: cols[5].width - 6 });
+
+    doc.end();
+
+    await new Promise(resolve => stream.on('finish', resolve));
+    console.log(`✅ Gesamtauflistung erstellt: ${OUTPUT_FILE}`);
+    return { success: true, file: OUTPUT_FILE, count: invoices.length, totalBrutto };
 }
 
-analyzeInvoices().catch(console.error);
+if (require.main === module) {
+    run().catch(err => {
+        console.error('Fatal Error:', err);
+        process.exit(1);
+    });
+} else {
+    module.exports = { analyze: run };
+}

@@ -186,7 +186,8 @@ async function downloadMode(page, activities, startDate, endDate) {
             const text = pdfData.text;
 
             let invoiceNum = 'UNKNOWN';
-            const invMatch = text.match(/(?:Rechnungsnummer|Invoice Number|Rechnung)[\s:]*([A-Z0-9-]{6,})/i);
+            // Match: "Rechnungsnummer:  FGAACEGJ-03-2025-0898954"
+            const invMatch = text.match(/Rechnungsnummer[:\s]+([A-Z0-9]+-[A-Z0-9-]+)/i);
             if (invMatch) invoiceNum = invMatch[1].trim();
 
             let exactDate = parseSubtitleDate(dateStr);
