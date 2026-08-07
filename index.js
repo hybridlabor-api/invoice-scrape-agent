@@ -275,7 +275,9 @@ async function main() {
           { name: '📧 E-Mail Rechnungs-Scraper (IMAP)', value: 'email_menu' },
           new inquirer.Separator(),
           { name: '🌟 Gesamtabrechnung aller Dienste erstellen (Master PDF)', value: 'master_report' },
+          new inquirer.Separator('--- Aktionen ---'),
           { name: '🤖 Neuen Web-Scraper generieren (Dojo AI)', value: 'scaffold' },
+          { name: '💻 GUI Modus starten (Electron)', value: 'start_gui' },
           { name: '⏰ Auto-Pilot / Background Scheduler starten', value: 'cron' },
           { name: '📁 Rechnungsordner öffnen (invoices/)', value: 'open_folder' },
           { name: '🔄 Auf neueste Version updaten (NPM)', value: 'update' },
@@ -316,14 +318,25 @@ async function main() {
         { type: 'input', name: 'interval', message: 'Intervall (z.B. 24h, 12h, 30m):', default: '24h' }
       ]);
       console.log(`\nStarte Cron-Daemon im Hintergrund mit Intervall ${interval}...`);
-      const { spawn } = require('child_process');
-      const cronPath = path.join(__dirname, 'services', 'scheduler', 'cron-runner.js');
-      const cronProcess = spawn(process.execPath, [cronPath, `--interval=${interval}`], {
-        stdio: 'ignore', // Detach stdout
-        detached: true   // Allow it to run after CLI exits
+      const cp = require('child_process');
+      const cronRunnerScript = path.join(__dirname, 'services', 'scheduler', 'cron-runner.js');
+      const cronProcess = cp.spawn(process.execPath, [cronRunnerScript, `--interval=${interval}`], {
+        detached: true,
+        stdio: 'ignore'
       });
       cronProcess.unref(); // Detach process completely
       console.log(`✅ Auto-Pilot gestartet! Er läuft unsichtbar im Hintergrund weiter, auch wenn du dieses Fenster schließt.`);
+      await waitPrompt();
+    } else if (selected === 'start_gui') {
+      const { spawn } = require('child_process');
+      console.log("\n🚀 Starte BDB Invoice Suite GUI...\n");
+      // Execute the npm script for start:gui or the local executable directly
+      const guiProcess = spawn('npx', ['electron', path.join(__dirname, 'electron', 'main.js')], {
+        stdio: 'inherit',
+        detached: true
+      });
+      guiProcess.unref();
+      console.log(`✅ GUI erfolgreich im Hintergrund gestartet!`);
       await waitPrompt();
     } else if (selected === 'update') {
       console.clear();
