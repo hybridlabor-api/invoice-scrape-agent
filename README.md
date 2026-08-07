@@ -98,10 +98,10 @@ npx -y bdb-dev-uber-recipe-wrapper
 
 ### 📦 Option 2: Global NPM Installation
 ```bash
-npm install -g bdb-dev-uber-recipe-wrapper
+npm install -g invoice-scrape-agent
 
 # Start anytime with:
-bdb-dev-uber-recipe-wrapper
+invoice-scrape-agent
 # or
 uber-invoice-agent
 # or
@@ -112,16 +112,16 @@ aliexpress-invoice-agent
 
 #### 🍎 macOS / 🐧 Linux
 ```bash
-git clone https://github.com/hybridlabor-api/uber-invoice-agent.git
-cd uber-invoice-agent
+git clone https://github.com/hybridlabor-api/invoice-scrape-agent.git
+cd invoice-scrape-agent
 chmod +x install.sh
 ./install.sh
 ```
 
 #### 🪟 Windows (PowerShell / CMD)
 ```powershell
-git clone https://github.com/hybridlabor-api/uber-invoice-agent.git
-cd uber-invoice-agent
+git clone https://github.com/hybridlabor-api/invoice-scrape-agent.git
+cd invoice-scrape-agent
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 

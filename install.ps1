@@ -1,8 +1,8 @@
-# Uber Invoice Agent - Windows PowerShell Installer
+# Invoice Scrape Agent - Windows PowerShell Installer
 $ErrorActionPreference = "Stop"
 
 Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host "     🚖 Uber Invoice Agent Installer (Windows)        " -ForegroundColor Cyan
+Write-Host "    🧾 Invoice Scrape Agent Installer (Windows)       " -ForegroundColor Cyan
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host ""
 

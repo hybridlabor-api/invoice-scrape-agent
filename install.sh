@@ -10,7 +10,7 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 echo -e "${CYAN}======================================================${NC}"
-echo -e "${CYAN}     🚖 Uber Invoice Agent Installer (macOS/Linux)    ${NC}"
+echo -e "${CYAN}    🧾 Invoice Scrape Agent Installer (macOS/Linux)   ${NC}"
 echo -e "${CYAN}======================================================${NC}"
 echo ""
 

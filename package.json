@@ -4,6 +4,7 @@
   "description": "Autonomous, cross-platform Uber & AliExpress tax invoice fetcher, receipt PNG-to-PDF normalizer, and PDF accounting analyzer",
   "main": "index.js",
   "bin": {
+    "invoice-scrape-agent": "index.js",
     "bdb-dev-uber-recipe-wrapper": "index.js",
     "uber-invoice-agent": "index.js",
     "aliexpress-invoice-agent": "index.js"
@@ -21,6 +22,7 @@
     "scan:aliexpress": "node services/aliexpress/scanner.js",
     "fetch:uber": "node services/uber/fetcher.js",
     "fetch:aliexpress": "node services/aliexpress/fetcher.js",
+    "analyze": "node index.js",
     "analyze:uber": "node services/uber/analyzer.js",
     "analyze:aliexpress": "node services/aliexpress/analyzer.js"
   },
@@ -40,7 +42,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hybridlabor-api/uber-invoice-agent.git"
+    "url": "git+https://github.com/hybridlabor-api/invoice-scrape-agent.git"
   },
   "keywords": [
     "uber",
