@@ -1,22 +1,26 @@
 {
   "name": "bdb-dev-uber-recipe-wrapper",
-  "version": "1.0.2",
-  "description": "Autonomous, cross-platform Uber tax invoice fetcher, batch downloader, and PDF accounting analyzer",
+  "version": "1.1.0",
+  "description": "Autonomous, cross-platform Uber & AliExpress tax invoice fetcher, receipt PNG-to-PDF normalizer, and PDF accounting analyzer",
   "main": "index.js",
   "bin": {
     "bdb-dev-uber-recipe-wrapper": "index.js",
-    "uber-invoice-agent": "index.js"
+    "uber-invoice-agent": "index.js",
+    "aliexpress-invoice-agent": "index.js"
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
     "start": "node index.js",
-    "setup": "node auth.js",
+    "setup": "node setup.js",
     "auth": "node auth.js",
-    "fetch": "node fetcher.js",
-    "scan": "node fetcher.js --scan",
-    "analyze": "node analyzer.js"
+    "auth:uber": "node services/uber/auth.js",
+    "auth:aliexpress": "node services/aliexpress/auth.js",
+    "fetch:uber": "node services/uber/fetcher.js",
+    "fetch:aliexpress": "node services/aliexpress/fetcher.js",
+    "analyze:uber": "node services/uber/analyzer.js",
+    "analyze:aliexpress": "node services/aliexpress/analyzer.js"
   },
   "files": [
     "index.js",
@@ -24,6 +28,8 @@
     "analyzer.js",
     "auth.js",
     "setup.js",
+    "services/",
+    "utils/",
     "agent_skill.md",
     "install.sh",
     "install.ps1",
@@ -36,8 +42,10 @@
   },
   "keywords": [
     "uber",
+    "aliexpress",
     "invoices",
     "tax-invoices",
+    "receipt-to-pdf",
     "pdf-parser",
     "playwright",
     "accounting",

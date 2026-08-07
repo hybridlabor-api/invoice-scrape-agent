@@ -1,40 +1,45 @@
 ```text
-██╗   ██╗██████╗ ███████╗██████╗     ██╗███╗   ██╗██╗   ██╗ ██████╗ ██╗ ██████╗███████╗
-██║   ██║██╔══██╗██╔════╝██╔══██╗    ██║████╗  ██║██║   ██║██╔═══██╗██║██╔════╝██╔════╝
-██║   ██║██████╔╝█████╗  ██████╔╝    ██║██╔██╗ ██║██║   ██║██║   ██║██║██║     █████╗  
-██║   ██║██╔══██╗██╔══╝  ██╔══██╗    ██║██║╚██╗██║╚██╗ ██╔╝██║   ██║██║██║     ██╔══╝  
-╚██████╔╝██████╔╝███████╗██║  ██║    ██║██║ ╚████║ ╚████╔╝ ╚██████╔╝██║╚██████╗███████╗
- ╚═════╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝    ╚═╝╚═╝  ╚═══╝  ╚═══╝   ╚═════╝ ╚═╝ ╚═════╝╚══════╝
+██████╗ ██████╗ ██████╗     ██╗███╗   ██╗██╗   ██╗ ██████╗ ██╗ ██████╗███████╗
+██╔══██╗██╔══██╗██╔══██╗    ██║████╗  ██║██║   ██║██╔═══██╗██║██╔════╝██╔════╝
+██████╔╝██║  ██║██████╔╝    ██║██╔██╗ ██║██║   ██║██║   ██║██║██║     █████╗  
+██╔══██╗██║  ██║██╔══██╗    ██║██║╚██╗██║╚██╗ ██╔╝██║   ██║██║██║     ██╔══╝  
+██████╔╝██████╔╝██████╔╝    ██║██║ ╚████║ ╚████╔╝ ╚██████╔╝██║╚██████╗███████╗
+╚═════╝ ╚═════╝ ╚═════╝     ╚═╝╚═╝  ╚═══╝  ╚═══╝   ╚═════╝ ╚═╝ ╚═════╝╚══════╝
 
-             A U T O N O M O U S   T A X   I N V O I C E   F E T C H E R
+        A U T O N O M O U S   I N V O I C E   &   R E C E I P T   S U I T E
 ```
 
-# 🚖 Uber Invoice Agent
+# 🧾 BDB Invoice & Receipt Suite (Uber & AliExpress)
 
 [![Node.js Version](https://img.shields.io/badge/node-18+-blue.svg)](https://nodejs.org/)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-brightgreen.svg)](#-cross-platform-installation)
-[![Engine](https://img.shields.io/badge/engine-Playwright%20%2B%20GraphQL-orange.svg)](#-architecture--how-it-works)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-brightgreen.svg)](#-installation--quick-start)
+[![Services](https://img.shields.io/badge/services-Uber%20%2B%20AliExpress-purple.svg)](#-supported-services)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Zero-Token](https://img.shields.io/badge/parser-Zero--Token%20Deterministic-purple.svg)](#-zero-token-pdf-accounting-analyzer)
+[![Zero-Token](https://img.shields.io/badge/parser-Zero--Token%20Deterministic-green.svg)](#-zero-token-accounting-analyzers)
 
-> **Autonomous, cross-platform CLI agent to discover, batch download, normalize, and analyze Uber trip tax invoices (`Uber-Bv-*.pdf`) into clean accounting reports.**
+> **Unified, autonomous, cross-platform CLI suite to discover, batch download, normalize PNG receipts to vector PDFs, and generate consolidated accounting tables (`Gesamtauflistung.pdf`) for Uber and AliExpress.**
 
 ---
 
 ## 🌟 Key Highlights
 
-- **⚡ 100% Trip Discovery via GraphQL Interception**: Bypasses fragile DOM scraping and virtual scrolling by intercepting Uber's internal `https://riders.uber.com/graphql` activity stream.
-- **📅 Smart Chronological Year Tracking**: Resolves Uber's omission of years in list dates (`"31. Juli • 9:56"`) through relative chronology and boundary detection.
-- **📑 Standardized Invoice Renaming**: Automatically extracts tax invoice numbers from PDF content to name files consistently as `Uber-Bv-YYYY-MM-DD-<INVOICE_NUMBER>.pdf`.
-- **📊 Zero-Token PDF Accounting Analyzer**: No external LLM or API tokens required. Extracts Netto, USt, Brutto, and Trip Distance locally to generate a professional landscape summary table (`Gesamtauflistung.pdf`).
-- **🛡️ Bot-Bypass Persistent Authentication**: Uses a persistent Chrome user-data profile to prevent recurring 2FA prompts and bypass Cloudflare bot detections.
-- **💻 100% Cross-Platform**: Native execution on **macOS**, **Windows (PowerShell / CMD)**, and **Linux**.
+### 🚖 Uber Invoices
+- **⚡ GraphQL Network Interception**: Captures 100% of trips via `https://riders.uber.com/graphql` without virtual scrolling glitches.
+- **📅 Chronological Year Tracking**: Resolves Uber's year-omission in relative date strings (`"31. Juli • 9:56"`).
+- **📑 Automatic Re-naming**: Extracts official invoice numbers from PDF text: `invoices/Uber-Bv-YYYY-MM-DD-<INVOICE_NO>.pdf`.
+
+### 🛍️ AliExpress Invoices & Receipts
+- **🌐 Alibaba MTOP Interceptor**: Intercepts `mtop.aliexpress.buyer.order.list` endpoints for 100% accurate financial metadata.
+- **🖼️ Lossless PNG-to-A4 PDF Pipeline**: Automatically captures PNG receipts / Canvas renders and converts them to standardized, accounting-grade A4 PDFs (`invoices/aliexpress/AliExpress-YYYY-MM-DD-<ORDER_ID>.pdf`).
+- **📊 Consolidated Financial Table**: Generates structured accounting summaries (`Gesamtauflistung.pdf` and `Gesamtauflistung.json`).
+
+### 🛡️ Core Platform
+- **🔑 Persistent Chrome Sessions**: Stores logins safely in `.auth-profile/` (no recurring 2FA or Captcha sliders on subsequent runs).
+- **💻 100% Cross-Platform**: Runs natively on **macOS**, **Windows (PowerShell / CMD)**, and **Linux**.
 
 ---
 
 ## 🌐 OpenWiki Living Documentation
-
-This project maintains living codebase specifications powered by the **OpenWiki Engine**:
 
 - **🚀 Quickstart & Onboarding:** [.openwiki/quickstart.md](.openwiki/quickstart.md)
 - **🏗️ Architecture & Signal Flow:** [.openwiki/architecture.md](.openwiki/architecture.md)
@@ -43,35 +48,43 @@ This project maintains living codebase specifications powered by the **OpenWiki 
 
 ---
 
-## 🔄 System Architecture
+## 🔄 Multi-Service Architecture
 
 ```mermaid
 flowchart TD
     subgraph UI ["🖥️ Interfaces"]
-        CLI["index.js (Interactive Inquirer CLI)"]
-        AGENT["agent_skill.md (Autonomous Coding Agents)"]
+        CLI["index.js (Multi-Service Inquirer CLI)"]
+        AGENT["agent_skill.md (AI Agent Wrapper)"]
     end
 
-    subgraph Core ["⚡ Core Engine"]
-        AUTH["auth.js (Persistent Chrome Session)"]
-        FETCH["fetcher.js (GraphQL Interceptor)"]
-        PARSE["analyzer.js (Deterministic PDF Engine)"]
+    subgraph Uber ["🚖 Uber Service"]
+        U_AUTH["services/uber/auth.js"]
+        U_FETCH["services/uber/fetcher.js (GraphQL)"]
+        U_PARSE["services/uber/analyzer.js"]
     end
 
-    subgraph Storage ["💾 Filesystem & Output"]
-        PROFILE[".auth-profile/ (Session Cookies)"]
-        INVOICES["invoices/Uber-Bv-*.pdf"]
-        SUMMARY["Gesamtauflistung.pdf (A4 Landscape)"]
+    subgraph AliExpress ["🛍️ AliExpress Service"]
+        A_AUTH["services/aliexpress/auth.js"]
+        A_FETCH["services/aliexpress/fetcher.js (MTOP)"]
+        A_CONV["utils/pdf-converter.js (PNG to A4 PDF)"]
+        A_PARSE["services/aliexpress/analyzer.js"]
     end
 
-    CLI --> FETCH
-    AGENT --> FETCH
-    AUTH --> PROFILE
-    PROFILE --> FETCH
-    FETCH -->|Intercepts GraphQL| UBER["Uber GraphQL API"]
-    FETCH -->|Downloads & Renames| INVOICES
-    INVOICES --> PARSE
-    PARSE --> SUMMARY
+    subgraph Storage ["💾 Storage & Output"]
+        PROFILE[".auth-profile/"]
+        U_INV["invoices/Uber-Bv-*.pdf"]
+        A_INV["invoices/aliexpress/AliExpress-*.pdf"]
+        SUMMARY["Gesamtauflistung.pdf"]
+    end
+
+    CLI --> Uber
+    CLI --> AliExpress
+    U_AUTH --> PROFILE
+    A_AUTH --> PROFILE
+    U_FETCH --> U_INV
+    A_FETCH --> A_CONV --> A_INV
+    U_INV --> U_PARSE --> SUMMARY
+    A_INV --> A_PARSE --> SUMMARY
 ```
 
 ---
@@ -79,20 +92,20 @@ flowchart TD
 ## 🛠️ Installation & Quick Start
 
 ### ⚡ Option 1: Run Instantly via NPX (Zero-Install)
-Run the agent directly in your terminal on macOS, Windows, or Linux without manual cloning:
 ```bash
 npx -y bdb-dev-uber-recipe-wrapper
 ```
 
 ### 📦 Option 2: Global NPM Installation
-Install the tool globally to have the CLI command available everywhere:
 ```bash
 npm install -g bdb-dev-uber-recipe-wrapper
 
-# Start the dashboard anytime with:
+# Start anytime with:
 bdb-dev-uber-recipe-wrapper
 # or
 uber-invoice-agent
+# or
+aliexpress-invoice-agent
 ```
 
 ### 💻 Option 3: Local Git Repository Clone
@@ -112,29 +125,11 @@ cd uber-invoice-agent
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-*Note: The installer automatically checks dependencies, creates directories, and launches the guided setup.*
-
----
-
-## 🔑 First-Time Authentication
-
-Authenticate once using your standard Uber account:
-
-```bash
-npm run auth
-# or
-node auth.js
-```
-
-1. A Chrome browser window will open at `https://riders.uber.com`.
-2. Complete your login (SMS code, password, or OAuth).
-3. The session is stored locally in `.auth-profile/` for subsequent unattended automation.
-
 ---
 
 ## 🎮 Interactive CLI Dashboard
 
-Launch the interactive terminal interface:
+Launch the interactive dashboard:
 
 ```bash
 npm start
@@ -142,88 +137,18 @@ npm start
 
 ```text
 ======================================================
-       🚖 Uber Invoice Agent - Hauptmenü 🚖        
+       🧾 BDB Invoice & Recipe Suite 🧾               
 ======================================================
 
-? Was möchtest du tun?
-❯ 🔍 Verfügbaren Datumsbereich scannen
-  📥 Alle Rechnungen herunterladen
-  📅 Rechnungen für ein Jahr herunterladen
-  📆 Rechnungen für einen bestimmten Zeitraum herunterladen
-  📊 Heruntergeladene Rechnungen analysieren (PDF-Tabelle)
+? Welchen Dienst möchtest du verwalten?
+❯ 🚖 Uber Invoices (Fahrten & Tax Invoices)
+  🛍️ AliExpress Invoices & Receipts (Belege & Rechnungen)
+  📁 Rechnungsordner öffnen (invoices/)
   🚪 Beenden
 ```
 
-### Modes & Features:
-- **🔍 Scan Mode**: Discovers total lifetime trip count, earliest trip date, and latest trip date without initiating downloads.
-- **📥 Download All**: Automatically navigates the complete activity history and downloads every tax invoice.
-- **📅 Download by Year**: One-click batch download for specific fiscal years (`2026`, `2025`, `2024`, etc.).
-- **📆 Custom Date Range**: Download invoices bounded between custom `YYYY-MM-DD` start and end dates.
-- **📊 Analyze Mode**: Parses the `invoices/` directory and compiles an aggregated financial overview.
-
 ---
 
-## 📊 Zero-Token PDF Accounting Analyzer
+## 📄 License & Attribution
 
-Run the analysis standalone at any time:
-
-```bash
-npm run analyze
-```
-
-```text
-📊 Analysiere 26 Rechnungen...
-
-  ✅ FGAACEGJ-03-2025-0898954 | 31.10.2025 | 13.90€
-  ✅ FGAACEGJ-03-2025-1061939 | 04.11.2025 | 14.96€
-  ✅ FGAACEGJ-03-2025-1166524 | 07.11.2025 | 11.93€
-  ...
-──────────────────────────────────────────────────
-Rechnungen:    26
-Netto gesamt:  289.42 €
-USt gesamt:    54.98 €
-Brutto gesamt: 344.40 €
-──────────────────────────────────────────────────
-
-✅ Gesamtauflistung erstellt: Gesamtauflistung.pdf
-```
-
-The output file `Gesamtauflistung.pdf` is structured as a landscape A4 table containing:
-- **Nr.**
-- **Datum**
-- **Rechnungsnummer**
-- **Netto (€)**
-- **USt (€)**
-- **Brutto (€)**
-- **USt-Satz (%)**
-- **Distanz (km)**
-- **Anbieter / Partnerunternehmen**
-- **Summenzeile (Totals)**
-
----
-
-## 🤖 AI Agent Skill Specification
-
-This repository includes [`agent_skill.md`](agent_skill.md) for direct tool execution by AI coding agents (**Antigravity, Cline, Roo Code, Claude Code, Cursor**).
-
-### Non-Interactive Command Matrix:
-| Goal | Command | Output |
-| :--- | :--- | :--- |
-| **Scan Range** | `node fetcher.js --scan` | Earliest & latest trip dates, total trip count |
-| **Batch Year** | `node fetcher.js --start 2025-01-01 --end 2025-12-31` | Downloads year 2025 invoices to `invoices/` |
-| **Custom Range** | `node fetcher.js --start YYYY-MM-DD --end YYYY-MM-DD` | Downloads filtered invoices |
-| **Accounting PDF** | `node analyzer.js` | Generates `Gesamtauflistung.pdf` |
-
----
-
-## 🔒 Security & Privacy
-
-- **Local Storage Only**: All session tokens and invoices remain exclusively on your local filesystem (`.auth-profile/` and `invoices/`).
-- **No Cloud Dependencies**: Trip discovery and PDF parsing operate without external API keys or remote telemetry.
-- **Git Protection**: `.gitignore` is pre-configured to prevent accidental commits of `.env`, `.auth-profile/`, or invoice documents.
-
----
-
-## 📄 License
-
-Distributed under the **MIT License**. See `LICENSE` for more information.
+Distributed under the **MIT License**. Part of the BDB Developer Toolchain.

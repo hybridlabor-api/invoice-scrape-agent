@@ -1,79 +1,72 @@
-# 🏗️ Architecture & Signal Flow
+# 🏗️ System Architecture & Specifications
 
-The **Uber Invoice Agent** is engineered for resilience against Uber's dynamic single-page web app changes, Cloudflare bot challenges, and virtualized DOM containers.
+The **BDB Invoice & Receipt Suite** is an autonomous Node.js-based system for harvesting, normalizing, and aggregating accounting records from multiple e-commerce and mobility platforms.
 
 ---
 
-## 🔄 System Architecture Diagram
+## 🧩 Architectural Layers
 
 ```mermaid
-flowchart TD
-    subgraph Client ["🖥️ User & AI Interface"]
-        CLI["index.js (Inquirer CLI)"]
-        AGENT["agent_skill.md (Automated Subagents)"]
+graph TD
+    subgraph Client ["Client & CLI Layer"]
+        CLI["index.js (Interactive Multi-Service Dashboard)"]
+        AGENT["agent_skill.md (Autonomous LLM Bridge)"]
     end
 
-    subgraph Core ["⚡ Core Automation Engine"]
-        AUTH["auth.js (Persistent Session Manager)"]
-        FETCH["fetcher.js (GraphQL Interceptor)"]
-        PARSE["analyzer.js (Deterministic PDF Parser)"]
+    subgraph Orchestration ["Service Orchestrators"]
+        U_ORCH["services/uber/"]
+        A_ORCH["services/aliexpress/"]
     end
 
-    subgraph External ["🌐 External & Output Services"]
-        UBER["Uber GraphQL API (riders.uber.com/graphql)"]
-        STORAGE["Local Storage: .auth-profile/"]
-        PDFS["PDF Invoices: invoices/Uber-Bv-*.pdf"]
-        REPORT["Summary Table: Gesamtauflistung.pdf"]
+    subgraph Adapters ["Platform Adapters & Interceptors"]
+        U_GQL["Uber GraphQL Stream Listener"]
+        A_MTOP["AliExpress MTOP JSON Interceptor"]
+        PDF_CONV["utils/pdf-converter.js (PNG-to-A4 Normalizer)"]
     end
 
-    CLI -->|Interactive Menu| FETCH
-    AGENT -->|CLI Arguments --scan/--start/--end| FETCH
-    AUTH -->|Stores Session| STORAGE
-    FETCH -->|Loads Persistent Context| STORAGE
-    FETCH -->|Intercepts Activities Request| UBER
-    FETCH -->|Downloads & Renames| PDFS
-    CLI -->|Trigger Analysis| PARSE
-    PDFS -->|Read & Parse Metadata| PARSE
-    PARSE -->|Outputs Table| REPORT
+    subgraph DataStore ["Data & Asset Store"]
+        AUTH_STORE[".auth-profile/ (Persistent Browser Storage)"]
+        UBER_INV["invoices/Uber-Bv-*.pdf"]
+        ALI_INV["invoices/aliexpress/AliExpress-*.pdf"]
+        LEDGER["invoices/aliexpress/aliexpress_ledger.json"]
+        REPORTS["Gesamtauflistung.pdf (Landscape A4 Table)"]
+    end
+
+    CLI --> U_ORCH
+    CLI --> A_ORCH
+    AGENT --> CLI
+
+    U_ORCH --> U_GQL
+    A_ORCH --> A_MTOP
+    A_ORCH --> PDF_CONV
+
+    U_ORCH -.-> AUTH_STORE
+    A_ORCH -.-> AUTH_STORE
+
+    U_GQL --> UBER_INV
+    PDF_CONV --> ALI_INV
+    A_MTOP --> LEDGER
+
+    UBER_INV --> REPORTS
+    ALI_INV --> REPORTS
 ```
 
 ---
 
-## 🧩 Component Breakdown
+## 🚖 1. Uber Service Architecture
 
-### 1. `fetcher.js` (GraphQL Network Interception)
-- **Problem**: DOM scraping breaks when Uber updates React CSS classes, uses virtual scrolling, or changes button links.
-- **Solution**: Listens directly on Playwright's `page.on('response')` stream for POST requests to `https://riders.uber.com/graphql`.
-- **Payload Extraction**: Parses `data.activities.past.activities[]` payloads to extract trip UUID, subtitle date, title, price, and cardURL.
-- **Chronological Year Tracking**: Walks backwards from the current date. When months jump forwards (e.g. from March to November), it dynamically decrements the inferred year.
-
-### 2. `auth.js` / `.auth-profile/`
-- Uses `chromium.launchPersistentContext()` to preserve cookies, localStorage, and token sessions without hardcoding brittle user agents that trigger Cloudflare CAPTCHAs.
-
-### 3. `analyzer.js` (Deterministic PDF Parsing)
-- Uses `pdf-parse` to extract exact tax metadata (Rechnungsnummer, Rechnungsdatum, Steuerdatum, Netto, USt, Brutto, USt-Satz, Distanz, Anbieter).
-- Uses `pdfkit` to generate a landscape A4 financial table summary without requiring an external LLM API.
+1. **Persistent Browser Session:** Uses `playwright` with `channel: 'chrome'` and `--disable-blink-features=AutomationControlled` to bypass Cloudflare anti-bot checks.
+2. **GraphQL Interceptor:** Monitors POST requests to `https://riders.uber.com/graphql` for operation `PastActivities`.
+3. **Smart Chronological Tracking:** Iterates activities from newest to oldest. Computes true Gregorian year boundaries even when Uber omits years from display strings.
+4. **Deterministic PDF Extraction:** Reads PDF text with `pdf-parse` to find `Rechnungsnummer`, `Rechnungsdatum`, Netto, USt, and Brutto.
 
 ---
 
-## 📁 File Structure
+## 🛍️ 2. AliExpress Service Architecture
 
-```text
-uber-invoice-agent/
-├── .openwiki/                # Living codebase wiki documentation
-│   ├── quickstart.md
-│   ├── architecture.md
-│   ├── decisions.md
-│   └── release_notes.md
-├── invoices/                 # Downloaded tax invoices (gitignored)
-├── .auth-profile/            # Persistent browser session storage (gitignored)
-├── agent_skill.md            # AI agent capability definition
-├── analyzer.js               # Zero-token PDF extraction & report generator
-├── auth.js                   # Interactive session initialization
-├── fetcher.js                # Core scraper & GraphQL interceptor
-├── index.js                  # Main interactive CLI interface
-├── install.sh                # macOS & Linux installation script
-├── install.ps1               # Windows PowerShell installation script
-├── package.json              # Project dependencies and script shortcuts
-└── README.md                 # Project showcase and documentation entrypoint
-```
+1. **MTOP Gateway Interception:** Listens to Alibaba's MTOP endpoints (`mtop.aliexpress.buyer.order.list`) for structured financial metadata.
+2. **PNG-to-PDF Normalization Pipeline:**
+   - Detects direct PDF download button on order detail page (`/p/order/detail.html?orderId=...`).
+   - If only PNG/Canvas receipt is provided, captures the raster buffer and embeds it losslessly into an A4 vector container via `pdfkit`.
+   - Names files deterministically as `AliExpress-YYYY-MM-DD-<ORDER_ID>.pdf`.
+3. **Structured Financial Ledger:** Maintains an updated `aliexpress_ledger.json` and compiles a landscape summary PDF (`Gesamtauflistung.pdf`).

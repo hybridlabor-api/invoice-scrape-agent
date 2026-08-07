@@ -1,20 +1,37 @@
 # 📝 Release Notes & Changelog
 
-All notable changes to the **Uber Invoice Agent** will be documented in this file.
+All notable changes to **BDB Invoice & Receipt Suite** are documented in this file.
 
 ---
 
-## [v2.0.0] - 2026-08-07
+## [1.1.0] - 2026-08-07
 
-### 🚀 Major Improvements
-- **GraphQL Stream Interception**: Switched trip detection from DOM scraping to intercepting Uber's internal GraphQL endpoint (`/graphql`), achieving 100% trip discovery accuracy across deep pagination.
-- **Smart Chronological Year Inference**: Added automatic year tracking that analyzes month jumps across paginated activity arrays, solving Uber's omission of year numbers in activity lists.
-- **Deterministic PDF Parsing**: Replaced external LLM dependencies with a fast, zero-token regex extraction engine capable of outputting a formatted `Gesamtauflistung.pdf` summary table.
-- **Invoice Number Normalization**: Fixed filename extraction regex to properly format files as `Uber-Bv-YYYY-MM-DD-<INVOICE_NUMBER>.pdf`.
-- **Extended CLI Dashboard**: Added quick-selection options to download all lifetime invoices or select by specific years (2026, 2025, 2024...).
-- **Cross-Platform Compatibility**: Added native Windows PowerShell installer script (`install.ps1`) and NPM standard script shortcuts (`npm run setup`, `npm start`, `npm run fetch`, `npm run analyze`).
+### 🚀 Added
+- **AliExpress Multi-Service Integration**:
+  - `services/aliexpress/auth.js`: 1-click persistent session authenticator for AliExpress.
+  - `services/aliexpress/fetcher.js`: MTOP network response interceptor + order pagination + receipt downloader.
+  - `utils/pdf-converter.js`: Lossless PNG-to-A4 PDF conversion engine using PDFKit.
+  - `services/aliexpress/analyzer.js`: Table generator producing `invoices/aliexpress/Gesamtauflistung.pdf` and `Gesamtauflistung.json`.
+- **Interactive Multi-Service CLI Dashboard**: Unified selector in `index.js` supporting both Uber and AliExpress operations.
+- **Binary Aliases**: Added `aliexpress-invoice-agent` CLI binary command in `package.json`.
+
+### 🔄 Changed
+- Refactored project into modular `services/uber/`, `services/aliexpress/`, and `utils/` layout while maintaining 100% root backwards compatibility.
+- Cleaned up installers (`install.sh` and `install.ps1`) to automatically verify Chromium and guide user setup.
 
 ---
 
-## [v1.0.0] - Initial Release
-- Initial Playwright automation and interactive CLI menu prototype.
+## [1.0.2] - 2026-08-07
+
+### 🔄 Changed
+- Overhauled installer scripts (`install.sh` and `install.ps1`) for seamless cross-platform execution.
+- Removed legacy LLM prompts from `setup.js` in favor of zero-token deterministic parsing.
+
+---
+
+## [1.0.0] - 2026-08-07
+
+### 🚀 Initial Release
+- Official Uber Tax Invoice extraction and renaming (`Uber-Bv-*.pdf`).
+- GraphQL activity stream interception.
+- Automated `Gesamtauflistung.pdf` accounting report generation.

@@ -5,32 +5,49 @@ const { execSync } = require('child_process');
 
 (async () => {
   console.log("\n======================================================");
-  console.log("       🚖 Uber Invoice Agent - Initial Setup 🚖        ");
+  console.log("       🧾 BDB Invoice Suite - Initial Setup 🧾         ");
   console.log("======================================================\n");
 
-  const INVOICE_DIR = path.join(__dirname, 'invoices');
-  if (!fs.existsSync(INVOICE_DIR)) {
-    fs.mkdirSync(INVOICE_DIR, { recursive: true });
-    console.log("📁 Verzeichnis 'invoices/' erstellt.");
-  }
+  const INVOICE_DIRS = [
+    path.join(__dirname, 'invoices'),
+    path.join(__dirname, 'invoices/uber'),
+    path.join(__dirname, 'invoices/aliexpress')
+  ];
+
+  INVOICE_DIRS.forEach(dir => {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  });
+  console.log("📁 Verzeichnisse 'invoices/uber' und 'invoices/aliexpress' bereit.\n");
 
   const answers = await inquirer.prompt([
     {
-      type: 'confirm',
-      name: 'runAuth',
-      message: 'Möchtest du dich jetzt einmalig bei Uber im Chrome-Browser einloggen?',
-      default: true
+      type: 'checkbox',
+      name: 'servicesToAuth',
+      message: 'Bei welchen Diensten möchtest du dich jetzt im Chrome-Browser einloggen?',
+      choices: [
+        { name: '🚖 Uber (riders.uber.com)', value: 'uber', checked: true },
+        { name: '🛍️ AliExpress (aliexpress.com)', value: 'aliexpress', checked: true }
+      ]
     }
   ]);
 
-  if (answers.runAuth) {
+  if (answers.servicesToAuth.includes('uber')) {
     console.log("\n🌐 Öffne Chrome für den Login auf riders.uber.com...");
     try {
-      execSync('node auth.js', { stdio: 'inherit' });
-      console.log("\n✅ Login erfolgreich in .auth-profile gespeichert!");
+      execSync('node services/uber/auth.js', { stdio: 'inherit' });
     } catch (e) {
-      console.log("\n⚠️ Login wurde abgebrochen oder ist fehlgeschlagen.");
-      console.log("Du kannst den Login jederzeit mit 'npm run auth' wiederholen.");
+      console.log("⚠️ Uber Login abgebrochen.");
+    }
+  }
+
+  if (answers.servicesToAuth.includes('aliexpress')) {
+    console.log("\n🌐 Öffne Chrome für den Login auf aliexpress.com...");
+    try {
+      execSync('node services/aliexpress/auth.js', { stdio: 'inherit' });
+    } catch (e) {
+      console.log("⚠️ AliExpress Login abgebrochen.");
     }
   }
 
