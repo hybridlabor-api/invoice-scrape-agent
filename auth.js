@@ -18,7 +18,6 @@ const envPath = path.join(__dirname, '.env');
       headless: false, 
       channel: 'chrome',
       viewport: null,
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
       args: [
         '--disable-blink-features=AutomationControlled',
         '--start-maximized'

@@ -63,8 +63,7 @@ async function run(isScan = false, startDate = null, endDate = null) {
         context = await chromium.launchPersistentContext(userDataDir, { 
             headless: false, // Sichtbar für den Nutzer und Cloudflare Bypass
             channel: 'chrome',
-            acceptDownloads: true,
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            acceptDownloads: true
         });
     } catch(e) {
         context = await chromium.launchPersistentContext(userDataDir, {
