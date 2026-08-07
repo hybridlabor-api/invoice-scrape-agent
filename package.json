@@ -17,6 +17,8 @@
     "auth": "node auth.js",
     "auth:uber": "node services/uber/auth.js",
     "auth:aliexpress": "node services/aliexpress/auth.js",
+    "scan:uber": "node services/uber/fetcher.js --scan",
+    "scan:aliexpress": "node services/aliexpress/scanner.js",
     "fetch:uber": "node services/uber/fetcher.js",
     "fetch:aliexpress": "node services/aliexpress/fetcher.js",
     "analyze:uber": "node services/uber/analyzer.js",

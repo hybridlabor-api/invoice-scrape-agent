@@ -125,9 +125,8 @@ async function handleAliExpressMenu() {
     if (action === 'back') break;
 
     if (action === 'scan') {
-      console.log("\n🔍 Scanne alle Bestellungen im AliExpress-Konto...\n");
       try {
-        execSync('node services/aliexpress/fetcher.js --scan', { stdio: 'inherit' });
+        execSync('node services/aliexpress/scanner.js', { stdio: 'inherit' });
       } catch (e) {}
       await waitPrompt();
     } else if (action === 'download_all') {
