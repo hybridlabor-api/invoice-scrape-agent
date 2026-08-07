@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BDB Invoice Suite</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            slate: {
+              850: '#141e33',
+              900: '#0f172a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Drag region for macOS hiddenInset titlebar */
+    body { font-family: 'Inter', -apple-system, sans-serif; }
+    .titlebar-drag { -webkit-app-region: drag; }
+    .no-drag { -webkit-app-region: no-drag; }
+    
+    /* Scrollbar styling */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    /* Custom Glassmorphism */
+    .glass {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-200 h-screen overflow-hidden flex flex-col selection:bg-indigo-500/30">
+  
+  <!-- Titlebar -->
+  <div class="h-10 w-full flex items-center px-4 titlebar-drag z-50">
+    <div class="ml-16 font-semibold text-sm tracking-wide text-slate-400">BDB Invoice Suite</div>
+  </div>
+
+  <div class="flex flex-1 overflow-hidden">
+    <!-- Sidebar -->
+    <div class="w-72 border-r border-slate-800 flex flex-col no-drag">
+      <div class="p-4 pb-2">
+        <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Integrations</h2>
+        <div id="services-list" class="space-y-1">
+          <!-- Services injected here -->
+        </div>
+      </div>
+      
+        <button onclick="window.api.openInvoices()" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1">
+          <span class="mr-3">📁</span> Open Invoices Folder
+        </button>
+        <button onclick="showModal('imap-modal')" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1">
+          <span class="mr-3">🔑</span> Set IMAP Credentials
+        </button>
+        <button onclick="showModal('email-modal')" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1">
+          <span class="mr-3">📧</span> New Email Provider
+        </button>
+        <button onclick="showModal('scraper-modal')" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
+          <span class="mr-3">🤖</span> New Web Scraper
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col relative no-drag">
+      
+      <!-- Top Action Area -->
+      <div class="p-8 flex-shrink-0">
+        <div class="flex items-center space-x-4 mb-2">
+          <span id="active-icon" class="text-4xl">🧾</span>
+          <h1 id="active-title" class="text-3xl font-bold text-white tracking-tight">Select a Service</h1>
+        </div>
+        <p id="active-desc" class="text-slate-400 mb-8">Choose an integration from the sidebar to view available actions.</p>
+
+        <!-- Action Grid -->
+        <div id="action-grid" class="grid grid-cols-2 gap-4 hidden">
+          <button onclick="runAction('scan')" class="glass p-5 rounded-xl text-left hover:bg-slate-800 transition-all group">
+            <div class="text-indigo-400 mb-2">🔍</div>
+            <h3 class="font-semibold text-white mb-1 group-hover:text-indigo-300 transition-colors">Scan Records</h3>
+            <p class="text-xs text-slate-400">Discover and count available invoices</p>
+          </button>
+          
+          <button onclick="runAction('download_all')" class="glass p-5 rounded-xl text-left hover:bg-slate-800 transition-all group">
+            <div class="text-emerald-400 mb-2">⬇️</div>
+            <h3 class="font-semibold text-white mb-1 group-hover:text-emerald-300 transition-colors">Download All</h3>
+            <p class="text-xs text-slate-400">Fetch complete history (can take time)</p>
+          </button>
+
+          <button onclick="promptYearAndDownload()" class="glass p-5 rounded-xl text-left hover:bg-slate-800 transition-all group">
+            <div class="text-amber-400 mb-2">📅</div>
+            <h3 class="font-semibold text-white mb-1 group-hover:text-amber-300 transition-colors">Download Year</h3>
+            <p class="text-xs text-slate-400">Fetch for a specific year (e.g. 2025)</p>
+          </button>
+
+          <button onclick="runAction('auth')" class="glass p-5 rounded-xl text-left hover:bg-slate-800 transition-all group">
+            <div class="text-rose-400 mb-2">🔑</div>
+            <h3 class="font-semibold text-white mb-1 group-hover:text-rose-300 transition-colors">Authenticate</h3>
+            <p class="text-xs text-slate-400">Login or verify credentials interactively</p>
+          </button>
+        </div>
+      </div>
+
+      <!-- Terminal Output -->
+      <div class="flex-1 bg-black/40 border-t border-slate-800/50 m-4 rounded-xl overflow-hidden flex flex-col">
+        <div class="h-8 bg-slate-800/30 flex items-center px-4 border-b border-slate-800/50">
+          <div class="flex space-x-1.5">
+            <div class="w-2.5 h-2.5 rounded-full bg-slate-600"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-slate-600"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-slate-600"></div>
+          </div>
+          <span class="ml-3 text-xs text-slate-500 font-mono">system.log</span>
+          
+          <!-- Loader (Hidden by default) -->
+          <div id="loader" class="ml-auto hidden">
+            <svg class="animate-spin h-4 w-4 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          </div>
+        </div>
+        <div id="terminal" class="flex-1 p-4 font-mono text-xs overflow-y-auto whitespace-pre-wrap text-slate-300">
+Welcome to BDB Invoice Suite GUI.
+Ready.
+        </div>
+      </div>
+      
+    </div>
+  </div>
+
+  <!-- MODALS -->
+  <!-- Backdrop -->
+  <div id="modal-backdrop" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 hidden flex items-center justify-center no-drag">
+    
+    <!-- IMAP Modal -->
+    <div id="imap-modal" class="hidden glass rounded-xl w-96 p-6 border border-slate-700 shadow-2xl relative">
+      <h3 class="text-xl font-bold text-white mb-4">IMAP Credentials</h3>
+      <div class="space-y-4">
+        <div><label class="block text-xs text-slate-400 mb-1">IMAP Host (e.g. imap.gmail.com)</label><input id="imap-host" type="text" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"></div>
+        <div><label class="block text-xs text-slate-400 mb-1">Email / Username</label><input id="imap-user" type="text" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"></div>
+        <div><label class="block text-xs text-slate-400 mb-1">App Password</label><input id="imap-pass" type="password" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"></div>
+      </div>
+      <div class="mt-6 flex justify-end space-x-3">
+        <button onclick="hideModals()" class="px-4 py-2 rounded text-sm text-slate-400 hover:text-white">Cancel</button>
+        <button onclick="saveImap()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded text-sm text-white font-medium">Save</button>
+      </div>
+    </div>
+
+    <!-- Email Provider Modal -->
+    <div id="email-modal" class="hidden glass rounded-xl w-96 p-6 border border-slate-700 shadow-2xl relative">
+      <h3 class="text-xl font-bold text-white mb-4">New Email Scraper</h3>
+      <div class="space-y-4">
+        <div><label class="block text-xs text-slate-400 mb-1">Service ID (e.g. lime)</label><input id="ep-id" type="text" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"></div>
+        <div><label class="block text-xs text-slate-400 mb-1">Display Name (e.g. Lime Scooters)</label><input id="ep-name" type="text" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"></div>
+        <div><label class="block text-xs text-slate-400 mb-1">Sender Email (e.g. receipts@li.me)</label><input id="ep-from" type="text" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"></div>
+        <div><label class="block text-xs text-slate-400 mb-1">Subject Keyword (Optional)</label><input id="ep-subj" type="text" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"></div>
+      </div>
+      <div class="mt-6 flex justify-end space-x-3">
+        <button onclick="hideModals()" class="px-4 py-2 rounded text-sm text-slate-400 hover:text-white">Cancel</button>
+        <button onclick="createEmail()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded text-sm text-white font-medium">Create</button>
+      </div>
+    </div>
+
+    <!-- Web Scraper Modal -->
+    <div id="scraper-modal" class="hidden glass rounded-xl w-96 p-6 border border-slate-700 shadow-2xl relative">
+      <h3 class="text-xl font-bold text-white mb-4">New Web Scraper (Dojo)</h3>
+      <div class="space-y-4">
+        <div><label class="block text-xs text-slate-400 mb-1">Service ID (e.g. ebay)</label><input id="ws-id" type="text" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"></div>
+        <div><label class="block text-xs text-slate-400 mb-1">Display Name (e.g. eBay DE)</label><input id="ws-name" type="text" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"></div>
+        <div><label class="block text-xs text-slate-400 mb-1">Auth URL (e.g. https://signin.ebay.de)</label><input id="ws-url" type="text" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"></div>
+      </div>
+      <div class="mt-6 flex justify-end space-x-3">
+        <button onclick="hideModals()" class="px-4 py-2 rounded text-sm text-slate-400 hover:text-white">Cancel</button>
+        <button onclick="createScraper()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded text-sm text-white font-medium">Generate</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
