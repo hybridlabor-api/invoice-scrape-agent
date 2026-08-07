@@ -209,11 +209,11 @@ async function startAliExpressFetcher() {
             await viewMoreBtn.scrollIntoViewIfNeeded();
             await page.waitForTimeout(400);
             await viewMoreBtn.click();
-            await page.waitForTimeout(1800);
+            await page.waitForTimeout(3000);
           } catch (e) {}
         } else {
-          await page.evaluate(() => window.scrollBy(0, 600));
-          await page.waitForTimeout(800);
+          await page.evaluate(() => window.scrollBy(0, 1500));
+          await page.waitForTimeout(2000);
         }
 
         const domOrders = await page.evaluate(() => {
@@ -257,7 +257,7 @@ async function startAliExpressFetcher() {
 
         if (collectedOrders.size === beforeCount) {
           consecutiveNoNewOrders++;
-          if (consecutiveNoNewOrders >= 2) keepScanning = false;
+          if (consecutiveNoNewOrders >= 3) keepScanning = false;
         } else {
           consecutiveNoNewOrders = 0;
           pageNum++;
