@@ -4,6 +4,24 @@ All notable changes to **BDB Invoice & Receipt Suite** are documented in this fi
 
 ---
 
+## [1.4.2] - 2026-08-07
+
+### Added
+- **Complete GUI Feature Parity:** All features from the CLI are now available in the Electron GUI.
+- **Advanced Auto-Pilot GUI Configuration:** The "Configure Auto-Pilot" modal now supports frequency selection (Daily, Weekly, Monthly, Custom Hours) and checkboxes for targeted scraper execution.
+- **Custom Date Range Downloads:** Added a beautiful GUI modal for users to select custom start and end dates (`YYYY-MM-DD`) for invoice fetching.
+- **Master PDF Report in GUI:** Added the ability to generate the combined master report directly from the GUI sidebar.
+- **Automatic Desktop Shortcuts:** `npm install -g invoice-scrape-agent` now triggers a `postinstall` script (`utils/shortcut-maker.js`) that automatically drops Mac (`.command`) and Windows (`.bat`) shortcuts on the user's desktop.
+- **Pre-Install Dependency Checks:** Added `utils/env-check.js` as a `preinstall` hook to strictly verify Node.js >= 18 and check Python status before allowing installation.
+- **Immediate E-Mail Provider Testing:** Creating a new Email provider (e.g., Bolt) now asks the user via a native confirm dialog if they'd like to run a targeted test scan for the newly created provider instantly.
+
+### Fixed
+- **Dynamic Service Sorting:** Fixed GUI layout to properly sort Amazon, AliExpress, Uber, and Email Scraper dynamically.
+- **Tailwind CSS Flexbox Bleed:** Fixed a critical CSS issue where the Terminal overlap squished the Sidebar. Solved using `flex-shrink-0` and `min-w-0` to maintain perfect boundaries.
+- **Year Download Bug:** Fixed an issue where the "Download Year" button hardcoded the current year without prompting. Replaced with a sleek Tailwind Glass Modal to input the desired year.
+
+---
+
 ## [1.1.1] - 2026-08-07
 
 ### 🐛 Fixed

@@ -276,6 +276,7 @@ async function main() {
           new inquirer.Separator(),
           { name: '🌟 Gesamtabrechnung aller Dienste erstellen (Master PDF)', value: 'master_report' },
           { name: '🤖 Neuen Web-Scraper generieren (Dojo AI)', value: 'scaffold' },
+          { name: '⏰ Auto-Pilot / Background Scheduler starten', value: 'cron' },
           { name: '📁 Rechnungsordner öffnen (invoices/)', value: 'open_folder' },
           new inquirer.Separator(),
           { name: '🚪 Beenden', value: 'exit' }
@@ -305,6 +306,24 @@ async function main() {
         else if (isWin) execSync(`explorer "${invDir}"`);
         else execSync(`xdg-open "${invDir}"`);
       } catch (e) {}
+    } else if (selected === 'cron') {
+      console.clear();
+      console.log("======================================================");
+      console.log("   ⏰ Auto-Pilot / Background Scheduler starten        ");
+      console.log("======================================================\n");
+      const { interval } = await inquirer.prompt([
+        { type: 'input', name: 'interval', message: 'Intervall (z.B. 24h, 12h, 30m):', default: '24h' }
+      ]);
+      console.log(`\nStarte Cron-Daemon im Hintergrund mit Intervall ${interval}...`);
+      const { spawn } = require('child_process');
+      const cronPath = path.join(__dirname, 'services', 'scheduler', 'cron-runner.js');
+      const cronProcess = spawn(process.execPath, [cronPath, `--interval=${interval}`], {
+        stdio: 'ignore', // Detach stdout
+        detached: true   // Allow it to run after CLI exits
+      });
+      cronProcess.unref(); // Detach process completely
+      console.log(`✅ Auto-Pilot gestartet! Er läuft unsichtbar im Hintergrund weiter, auch wenn du dieses Fenster schließt.`);
+      await waitPrompt();
     } else {
       await handleServiceMenu(selected);
     }

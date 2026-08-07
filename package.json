@@ -1,10 +1,11 @@
 {
   "name": "invoice-scrape-agent",
-  "version": "1.4.1",
-  "description": "Autonomous, cross-platform Uber & AliExpress tax invoice fetcher, receipt PNG-to-PDF normalizer, and PDF accounting analyzer",
+  "version": "1.4.2",
+  "description": "BDB Multi-Service Invoice & Tax Suite: Autonomous, cross-platform Uber & AliExpress tax invoice fetcher, receipt PNG-to-PDF normalizer, and PDF accounting analyzer",
   "main": "index.js",
   "bin": {
     "invoice-scrape-agent": "index.js",
+    "invoice-scrape-agent-gui": "utils/electron-runner.js",
     "uber-invoice-agent": "index.js",
     "aliexpress-invoice-agent": "index.js"
   },
@@ -12,6 +13,8 @@
     "access": "public"
   },
   "scripts": {
+    "preinstall": "node utils/env-check.js",
+    "postinstall": "node utils/shortcut-maker.js",
     "start": "node index.js",
     "start:gui": "electron electron/main.js",
     "setup": "node setup.js",

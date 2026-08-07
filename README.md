@@ -59,7 +59,19 @@
 
 ---
 
-## 🔄 Multi-Service Architecture
+## 🚀 Key Features
+
+### 🖥️ Brand New Electron GUI (v1.4+)
+- **Cross-Platform:** Works natively on macOS, Windows, and Linux.
+- **Glassmorphism UI:** Built with Tailwind CSS for a stunning, responsive, and dark-mode native experience.
+- **Real-time Terminal:** See the logs and scraper activity live inside the GUI window.
+- **Desktop Shortcuts:** Automatically creates functional Desktop shortcuts during `npm install -g`.
+
+### ⏰ Background Auto-Pilot (Cron)
+- **Set & Forget:** Enable the Auto-Pilot toggle in the GUI (or CLI) to run the scraper silently in the background every 24 hours.
+- **Detached Daemon:** Runs completely invisible.
+
+### 🌐 Scalable Architecture
 
 ```mermaid
 flowchart TD
@@ -102,21 +114,27 @@ flowchart TD
 
 ## 🛠️ Installation & Quick Start
 
-### ⚡ Option 1: Run Instantly via NPX (Zero-Install)
-```bash
-npx -y bdb-dev-uber-recipe-wrapper
-```
+### 1. Global Installation (Recommended)
+You can install the suite globally on any machine via NPM. The pre-install hook will automatically check your system dependencies (Node.js >= 18).
 
-### 📦 Option 2: Global NPM Installation
 ```bash
 npm install -g invoice-scrape-agent
+```
 
-# Start anytime with:
+*🎉 Magic! The installer will automatically generate executable Desktop Shortcuts for both the GUI and the CLI on Mac and Windows!*
+
+### 2. Running the App
+
+**Start the beautiful Electron GUI:**
+Double-click your Desktop Shortcut, or type:
+```bash
+invoice-scrape-agent-gui
+```
+
+**Start the powerful CLI:**
+Double-click the CLI Desktop Shortcut, or type:
+```bash
 invoice-scrape-agent
-# or
-uber-invoice-agent
-# or
-aliexpress-invoice-agent
 ```
 
 ### 💻 Option 3: Local Git Repository Clone

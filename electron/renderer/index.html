@@ -44,28 +44,43 @@
 <body class="bg-slate-900 text-slate-200 h-screen overflow-hidden flex flex-col selection:bg-indigo-500/30">
   
   <!-- Titlebar -->
-  <div class="h-10 w-full flex items-center px-4 titlebar-drag z-50">
+  <div class="h-10 w-full flex items-center px-4 titlebar-drag z-50 justify-between">
     <div class="ml-16 font-semibold text-sm tracking-wide text-slate-400">BDB Invoice Suite</div>
+    
+    <!-- Cron Toggle -->
+    <div class="no-drag flex items-center space-x-3 pr-4">
+      <span class="text-xs font-medium text-slate-500" id="cron-label">Auto-Pilot: OFF</span>
+      <button id="cron-toggle" onclick="toggleCron()" class="relative inline-flex h-5 w-9 items-center rounded-full bg-slate-700 transition-colors">
+        <span id="cron-knob" class="inline-block h-3 w-3 translate-x-1 rounded-full bg-white transition-transform"></span>
+      </button>
+    </div>
   </div>
 
   <div class="flex flex-1 overflow-hidden">
     <!-- Sidebar -->
-    <div class="w-72 border-r border-slate-800 flex flex-col no-drag">
+    <div class="w-72 flex-shrink-0 border-r border-slate-800 flex flex-col no-drag">
       <div class="p-4 pb-2">
         <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Integrations</h2>
         <div id="services-list" class="space-y-1">
           <!-- Services injected here -->
         </div>
       </div>
-      
+      <div class="p-4 mt-auto">
+        <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Tools</h2>
         <button onclick="window.api.openInvoices()" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1">
-          <span class="mr-3">📁</span> Open Invoices Folder
+          <span class="mr-3">📁</span> Open Invoices
         </button>
         <button onclick="showModal('imap-modal')" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1">
-          <span class="mr-3">🔑</span> Set IMAP Credentials
+          <span class="mr-3">🔑</span> IMAP Credentials
         </button>
         <button onclick="showModal('email-modal')" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1">
-          <span class="mr-3">📧</span> New Email Provider
+          <span class="mr-3">📧</span> New Email Scraper
+        </button>
+        <button onclick="runAction('master_report', 'master_report')" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1">
+          <span class="mr-3">🌟</span> Master PDF Report
+        </button>
+        <button onclick="toggleCron()" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors mb-1">
+          <span class="mr-3">⏰</span> Configure Auto-Pilot
         </button>
         <button onclick="showModal('scraper-modal')" class="w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
           <span class="mr-3">🤖</span> New Web Scraper
@@ -74,7 +89,7 @@
     </div>
 
     <!-- Main Content -->
-    <div class="flex-1 flex flex-col relative no-drag">
+    <div class="flex-1 min-w-0 flex flex-col relative no-drag">
       
       <!-- Top Action Area -->
       <div class="p-8 flex-shrink-0">
@@ -102,6 +117,18 @@
             <div class="text-amber-400 mb-2">📅</div>
             <h3 class="font-semibold text-white mb-1 group-hover:text-amber-300 transition-colors">Download Year</h3>
             <p class="text-xs text-slate-400">Fetch for a specific year (e.g. 2025)</p>
+          </button>
+
+          <button onclick="promptRangeAndDownload()" class="glass p-5 rounded-xl text-left hover:bg-slate-800 transition-all group">
+            <div class="text-sky-400 mb-2">📆</div>
+            <h3 class="font-semibold text-white mb-1 group-hover:text-sky-300 transition-colors">Download Range</h3>
+            <p class="text-xs text-slate-400">Fetch custom dates (YYYY-MM-DD)</p>
+          </button>
+
+          <button onclick="runAction('analyze')" class="glass p-5 rounded-xl text-left hover:bg-slate-800 transition-all group">
+            <div class="text-purple-400 mb-2">📊</div>
+            <h3 class="font-semibold text-white mb-1 group-hover:text-purple-300 transition-colors">Analyze</h3>
+            <p class="text-xs text-slate-400">Create PDF Service Report</p>
           </button>
 
           <button onclick="runAction('auth')" class="glass p-5 rounded-xl text-left hover:bg-slate-800 transition-all group">
@@ -183,6 +210,76 @@ Ready.
       <div class="mt-6 flex justify-end space-x-3">
         <button onclick="hideModals()" class="px-4 py-2 rounded text-sm text-slate-400 hover:text-white">Cancel</button>
         <button onclick="createScraper()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded text-sm text-white font-medium">Generate</button>
+      </div>
+    </div>
+
+    <!-- Year Prompt Modal -->
+    <div id="year-modal" class="hidden glass rounded-xl w-80 p-6 border border-slate-700 shadow-2xl relative">
+      <h3 class="text-xl font-bold text-white mb-4">Select Year</h3>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Year to Download</label>
+          <input id="dl-year" type="number" min="2010" max="2050" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+        </div>
+      </div>
+      <div class="mt-6 flex justify-end space-x-3">
+        <button onclick="hideModals()" class="px-4 py-2 rounded text-sm text-slate-400 hover:text-white">Cancel</button>
+        <button onclick="executeDownloadYear()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded text-sm text-white font-medium">Download</button>
+      </div>
+    </div>
+
+    <!-- Range Prompt Modal -->
+    <div id="range-modal" class="hidden glass rounded-xl w-80 p-6 border border-slate-700 shadow-2xl relative">
+      <h3 class="text-xl font-bold text-white mb-4">Select Date Range</h3>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Start Date (YYYY-MM-DD)</label>
+          <input id="dl-start" type="text" placeholder="2025-01-01" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">End Date (YYYY-MM-DD)</label>
+          <input id="dl-end" type="text" placeholder="2025-12-31" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+        </div>
+      </div>
+      <div class="mt-6 flex justify-end space-x-3">
+        <button onclick="hideModals()" class="px-4 py-2 rounded text-sm text-slate-400 hover:text-white">Cancel</button>
+        <button onclick="executeDownloadRange()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded text-sm text-white font-medium">Download</button>
+      </div>
+    </div>
+
+    <!-- Cron Config Modal -->
+    <div id="cron-modal" class="hidden glass rounded-xl w-96 p-6 border border-slate-700 shadow-2xl relative">
+      <h3 class="text-xl font-bold text-white mb-4">Background Auto-Pilot</h3>
+      
+      <!-- Interval Selection -->
+      <div class="mb-4">
+        <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Run Frequency</label>
+        <select id="cron-freq" onchange="document.getElementById('cron-custom-div').classList.toggle('hidden', this.value !== 'custom')" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 mb-2">
+          <option value="24h">Daily (Every 24h)</option>
+          <option value="7d">Weekly (Every 7 days)</option>
+          <option value="30d">Monthly (Every 30 days)</option>
+          <option value="custom">Custom (in Hours)</option>
+        </select>
+        <div id="cron-custom-div" class="hidden">
+          <input id="cron-custom" type="number" placeholder="e.g. 12 for 12 hours" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+        </div>
+      </div>
+
+      <!-- Scraper Selection -->
+      <div class="mb-4">
+        <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Target Scrapers</label>
+        <div id="cron-services-list" class="space-y-2 max-h-32 overflow-y-auto pr-2 bg-slate-800/50 p-2 rounded border border-slate-700/50">
+           <!-- Checkboxes injected by renderer.js -->
+        </div>
+        <p class="text-[10px] text-slate-500 mt-1">Leave all unchecked to run for ALL scrapers.</p>
+      </div>
+
+      <div class="mt-6 flex justify-between">
+        <button onclick="stopCron()" class="px-4 py-2 bg-rose-600/20 text-rose-400 hover:bg-rose-600/40 rounded text-sm font-medium">Stop Daemon</button>
+        <div class="flex space-x-3">
+          <button onclick="hideModals()" class="px-4 py-2 rounded text-sm text-slate-400 hover:text-white">Cancel</button>
+          <button onclick="startCron()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded text-sm text-white font-medium">Start</button>
+        </div>
       </div>
     </div>
 

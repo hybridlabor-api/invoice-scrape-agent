@@ -5,10 +5,10 @@
   "authUrl": "imap://",
   "search": {
     "from": [
-      "recipess@bolt.com"
+      "invoice@bolt.com"
     ],
     "subjectKeywords": [
-      "invoice, rechnung"
+      "rechnung, invoice"
     ],
     "folders": [
       "INBOX",

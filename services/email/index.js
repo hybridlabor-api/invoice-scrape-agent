@@ -88,8 +88,8 @@ class EmailService extends BaseService {
     return await this.providers[0].authenticate({ headless });
   }
 
-  async scan({ year = new Date().getFullYear().toString() } = {}) {
-    console.log(`\n🔍 [Email Scraper] Scanning all configured email providers for ${year}...`);
+  async scan({ year = new Date().getFullYear().toString(), onlyProviderId = null } = {}) {
+    console.log(`\n🔍 [Email Scraper] Scanning email providers for ${year}...`);
     let totalFound = 0;
     
     // Connect to IMAP once
@@ -99,6 +99,7 @@ class EmailService extends BaseService {
 
     try {
       for (const provider of this.providers) {
+        if (onlyProviderId && provider.providerConfig.id !== onlyProviderId) continue;
         console.log(`\n▶ Scanning provider: ${provider.displayName}`);
         const criteria = provider.buildSearchCriteria(year, null, null);
         const folders = provider.providerConfig.search?.folders || ['INBOX'];
@@ -126,14 +127,15 @@ class EmailService extends BaseService {
     return new Array(totalFound).fill({}); // Return dummy array so CLI shows count
   }
 
-  async fetch({ all = false, year = null, startDate = null, endDate = null, limit = null, headless = true } = {}) {
+  async fetch({ all = false, year = null, startDate = null, endDate = null, limit = null, headless = true, onlyProviderId = null } = {}) {
     const currentYear = year || new Date().getFullYear().toString();
-    console.log(`\n⬇️ [Email Scraper] Processing all email providers for ${currentYear}...`);
+    console.log(`\n⬇️ [Email Scraper] Processing email providers for ${currentYear}...`);
     
     let totalDownloaded = 0;
     let totalSkipped = 0;
 
     for (const provider of this.providers) {
+      if (onlyProviderId && provider.providerConfig.id !== onlyProviderId) continue;
       console.log(`\n======================================================`);
       console.log(`📩 Fetching for ${provider.displayName}`);
       console.log(`======================================================`);
