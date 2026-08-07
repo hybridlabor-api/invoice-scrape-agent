@@ -43,10 +43,6 @@ fi
 echo ""
 echo -e "${BLUE}[*] Configuring Environment Variables...${NC}"
 
-# Uber Cookie
-echo -e "${YELLOW}Please enter your Uber COOKIE string (used for fetching receipts):${NC}"
-read -p "> " UBER_COOKIE
-
 # Gemini API Key
 echo ""
 echo -e "${YELLOW}Please enter your GEMINI_API_KEY (used for AI analysis):${NC}"
@@ -57,9 +53,13 @@ ENV_FILE=".env"
 echo -e "${BLUE}[*] Writing to ${ENV_FILE}...${NC}"
 
 cat > "$ENV_FILE" << EOF
-COOKIE="$UBER_COOKIE"
 GEMINI_API_KEY="$GEMINI_API_KEY"
 EOF
+
+# Uber Auto-Login Cookie Extraction
+echo ""
+echo -e "${YELLOW}[*] Wir starten nun den automatischen Uber-Login...${NC}"
+node auth.js
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}[+] Configuration saved to ${ENV_FILE}.${NC}"
