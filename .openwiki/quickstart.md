@@ -12,27 +12,29 @@ A cross-platform, automated CLI agent to scan, download, and analyze historical 
 
 ---
 
-## 📦 Installation
-
-### macOS / Linux
+## 📦 Installation & Execution
+ 
+### Option 1: Instant via NPX
 ```bash
-git clone https://github.com/hybridlabor-api/uber-invoice-agent.git
-cd uber-invoice-agent
-chmod +x install.sh
+npx -y bdb-dev-uber-recipe-wrapper
+```
+
+### Option 2: Global NPM Install
+```bash
+npm install -g bdb-dev-uber-recipe-wrapper
+bdb-dev-uber-recipe-wrapper
+```
+
+### Option 3: Local Git Repository
+```bash
+# macOS / Linux:
 ./install.sh
-```
 
-### Windows (PowerShell as Administrator or User)
-```powershell
-git clone https://github.com/hybridlabor-api/uber-invoice-agent.git
-cd uber-invoice-agent
+# Windows PowerShell:
 powershell -ExecutionPolicy Bypass -File .\install.ps1
-```
 
-### Universal (via NPM)
-```bash
-npm install
-npm run setup
+# Start:
+npm start
 ```
 
 ---

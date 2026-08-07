@@ -76,26 +76,42 @@ flowchart TD
 
 ---
 
-## 🛠️ Cross-Platform Installation
+## 🛠️ Installation & Quick Start
 
-### 🍎 macOS / 🐧 Linux
+### ⚡ Option 1: Run Instantly via NPX (Zero-Install)
+Run the agent directly in your terminal on macOS, Windows, or Linux without manual cloning:
+```bash
+npx -y bdb-dev-uber-recipe-wrapper
+```
+
+### 📦 Option 2: Global NPM Installation
+Install the tool globally to have the CLI command available everywhere:
+```bash
+npm install -g bdb-dev-uber-recipe-wrapper
+
+# Start the dashboard anytime with:
+bdb-dev-uber-recipe-wrapper
+# or
+uber-invoice-agent
+```
+
+### 💻 Option 3: Local Git Repository Clone
+
+#### 🍎 macOS / 🐧 Linux
 ```bash
 git clone https://github.com/hybridlabor-api/uber-invoice-agent.git
 cd uber-invoice-agent
 chmod +x install.sh
 ./install.sh
+npm start
 ```
 
-### 🪟 Windows (PowerShell / CMD)
+#### 🪟 Windows (PowerShell / CMD)
 ```powershell
 git clone https://github.com/hybridlabor-api/uber-invoice-agent.git
 cd uber-invoice-agent
 powershell -ExecutionPolicy Bypass -File .\install.ps1
-```
-
-### 📦 Universal via NPM
-```bash
-npm install
+npm start
 ```
 
 ---
