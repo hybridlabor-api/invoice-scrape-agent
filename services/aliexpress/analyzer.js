@@ -44,33 +44,42 @@ async function analyzeAliExpressInvoices() {
 
   console.log(`🔍 Analysiere ${pdfFiles.length} heruntergeladene Rechnungen...`);
 
-  // Build unified lookup map from ledger.json and account_scan_summary.json
+  // Build unified lookup map from scan summary and ledger files
   const ledgerMap = {};
-  if (fs.existsSync(LEDGER_FILE)) {
-    try {
-      const raw = JSON.parse(fs.readFileSync(LEDGER_FILE, 'utf8'));
-      if (Array.isArray(raw)) {
-        raw.forEach(item => { if (item.orderId || item.id) ledgerMap[String(item.orderId || item.id)] = item; });
-      } else if (raw && typeof raw === 'object') {
-        Object.entries(raw).forEach(([k, v]) => { ledgerMap[String(k)] = v; });
-      }
-    } catch (e) {}
-  }
 
   if (fs.existsSync(SCAN_SUMMARY_FILE)) {
     try {
       const scanSummary = JSON.parse(fs.readFileSync(SCAN_SUMMARY_FILE, 'utf8'));
+      if (Array.isArray(scanSummary.orders)) {
+        scanSummary.orders.forEach(o => { if (o.orderId) ledgerMap[String(o.orderId)] = { ...o }; });
+      }
       if (scanSummary.years) {
         Object.values(scanSummary.years).forEach(y => {
           if (Array.isArray(y.orders)) {
-            y.orders.forEach(o => {
-              if (o.orderId && !ledgerMap[String(o.orderId)]) {
-                ledgerMap[String(o.orderId)] = o;
-              }
-            });
+            y.orders.forEach(o => { if (o.orderId) ledgerMap[String(o.orderId)] = { ...(ledgerMap[String(o.orderId)] || {}), ...o }; });
           }
         });
       }
+    } catch (e) {}
+  }
+
+  if (fs.existsSync(LEDGER_FILE)) {
+    try {
+      const raw = JSON.parse(fs.readFileSync(LEDGER_FILE, 'utf8'));
+      const items = Array.isArray(raw) ? raw : (raw && typeof raw === 'object' ? Object.values(raw) : []);
+      items.forEach(item => {
+        const id = String(item.orderId || item.id || '');
+        if (id) {
+          ledgerMap[id] = {
+            ...item,
+            ...(ledgerMap[id] || {}) // keep scan summary fields if present
+          };
+          // Ensure non-zero gross is kept
+          if (!ledgerMap[id].totalAmount && (item.totalAmount || item.brutto || item.gross)) {
+            ledgerMap[id].totalAmount = item.totalAmount || item.brutto || item.gross;
+          }
+        }
+      });
     } catch (e) {}
   }
 
@@ -87,7 +96,7 @@ async function analyzeAliExpressInvoices() {
     const steuerdatum = record.orderDate || record.steuerdatum || dateFromFilename;
     const rechnungsdatum = record.invoiceDate || record.rechnungsdatum || steuerdatum;
     const store = record.storeName || record.seller || 'AliExpress Seller';
-    const gross = typeof record.totalAmount === 'number' ? record.totalAmount : (typeof record.brutto === 'number' ? record.brutto : 0);
+    const gross = typeof record.totalAmount === 'number' ? record.totalAmount : (typeof record.brutto === 'number' ? record.brutto : (typeof record.gross === 'number' ? record.gross : (parseFloat(record.totalAmount || record.brutto || record.gross) || 0)));
     const currency = record.currency || 'EUR';
 
     // Itemized or estimated Netto & USt
@@ -101,11 +110,17 @@ async function analyzeAliExpressInvoices() {
       steuerdatum,
       rechnungsdatum,
       date: steuerdatum,
+      invoiceDate: rechnungsdatum,
       orderId,
       store,
+      seller: store,
       net,
       vat,
       gross,
+      netto: net,
+      ust: vat,
+      brutto: gross,
+      totalAmount: gross,
       currency
     });
   }

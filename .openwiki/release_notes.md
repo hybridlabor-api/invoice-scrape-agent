@@ -4,6 +4,15 @@ All notable changes to **BDB Invoice & Receipt Suite** are documented in this fi
 
 ---
 
+## [1.5.8] - 2026-08-07
+
+### 🚀 Added & Fixed
+- **AliExpress Robust Scan Summary Data Merging**:
+  - Enhanced `analyzer.js` to preserve non-zero total order amounts and tax dates directly from `account_scan_summary.json` across multi-year orders.
+  - Regenerated all Excel `.xls` / `.xlsx` spreadsheets for Amazon, AliExpress, and Master Consolidations with full numeric grand totals in both "Alle Belege" and "Monatsübersicht".
+
+---
+
 ## [1.5.7] - 2026-08-07
 
 ### 🚀 Added & Fixed
