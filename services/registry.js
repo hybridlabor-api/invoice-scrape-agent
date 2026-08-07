@@ -64,7 +64,7 @@ class ServiceRegistry {
     if (!fs.existsSync(servicesDir)) return;
     const entries = fs.readdirSync(servicesDir, { withFileTypes: true });
     for (const entry of entries) {
-      if (entry.isDirectory() && !['base', 'generator', 'unified', 'scheduler', 'email'].includes(entry.name)) {
+      if (entry.isDirectory() && !['base', 'generator', 'unified', 'scheduler'].includes(entry.name)) {
         const indexPath = path.join(servicesDir, entry.name, 'index.js');
         const servicePath = path.join(servicesDir, entry.name, `${entry.name}.service.js`);
         
@@ -83,37 +83,6 @@ class ServiceRegistry {
           this.register(entry.name, loadedModule);
         } else if (loadedModule && loadedModule.Service) {
           this.register(entry.name, loadedModule.Service);
-        }
-      }
-    }
-
-    // Auto-discover email providers
-    const emailProvidersDir = path.join(servicesDir, 'email', 'providers');
-    if (fs.existsSync(emailProvidersDir)) {
-      let EmailProviderService;
-      try {
-        EmailProviderService = require('./base/EmailProviderService');
-      } catch (e) {
-        console.warn(`[ServiceRegistry] Failed loading EmailProviderService:`, e.message);
-      }
-      
-      if (EmailProviderService) {
-        const providers = fs.readdirSync(emailProvidersDir);
-        for (const file of providers) {
-          if (file.endsWith('.json')) {
-            try {
-              const providerConfig = JSON.parse(fs.readFileSync(path.join(emailProvidersDir, file), 'utf8'));
-              // Create a wrapper class so ServiceRegistry.list() can instantiate it easily
-              class DynamicEmailProvider extends EmailProviderService {
-                constructor(config = {}) {
-                  super({ ...providerConfig, ...config });
-                }
-              }
-              this.register(providerConfig.id, DynamicEmailProvider);
-            } catch (e) {
-              console.warn(`[ServiceRegistry] Failed loading email provider ${file}:`, e.message);
-            }
-          }
         }
       }
     }
