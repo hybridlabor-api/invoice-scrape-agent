@@ -4,9 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const pdf = require('pdf-parse');
 
-const rootInvoices = path.join(__dirname, '../../invoices');
-const localInvoices = path.join(__dirname, 'invoices');
-const INVOICE_DIR = fs.existsSync(rootInvoices) ? rootInvoices : (fs.existsSync(localInvoices) ? localInvoices : rootInvoices);
+const rootInvoices = path.join(__dirname, '../../invoices/uber');
+const INVOICE_DIR = rootInvoices;
 if (!fs.existsSync(INVOICE_DIR)) {
     fs.mkdirSync(INVOICE_DIR, { recursive: true });
 }

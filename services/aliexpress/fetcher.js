@@ -8,13 +8,11 @@ const localProfile = path.join(__dirname, '.auth-profile');
 const AUTH_DIR = fs.existsSync(path.dirname(rootProfile)) ? rootProfile : localProfile;
 
 const rootInvoices = path.join(__dirname, '../../invoices/aliexpress');
-const localInvoices = path.join(__dirname, 'invoices');
-const INVOICE_DIR = fs.existsSync(path.dirname(rootInvoices)) ? rootInvoices : localInvoices;
-const LEDGER_FILE = path.join(INVOICE_DIR, 'aliexpress_ledger.json');
-
+const INVOICE_DIR = rootInvoices;
 if (!fs.existsSync(INVOICE_DIR)) {
   fs.mkdirSync(INVOICE_DIR, { recursive: true });
 }
+const LEDGER_FILE = path.join(INVOICE_DIR, 'aliexpress_ledger.json');
 
 function parseArgs() {
   const args = process.argv.slice(2);

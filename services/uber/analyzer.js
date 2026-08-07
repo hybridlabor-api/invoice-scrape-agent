@@ -3,10 +3,13 @@ const path = require('path');
 const pdf = require('pdf-parse');
 const PDFDocument = require('pdfkit');
 
-const rootInvoices = path.join(__dirname, '../../invoices');
-const localInvoices = path.join(__dirname, 'invoices');
-const INVOICE_DIR = fs.existsSync(rootInvoices) ? rootInvoices : (fs.existsSync(localInvoices) ? localInvoices : rootInvoices);
-const OUTPUT_FILE = path.join(INVOICE_DIR, 'Gesamtauflistung.pdf');
+const rootInvoices = path.join(__dirname, '../../invoices/uber');
+const INVOICE_DIR = rootInvoices;
+if (!fs.existsSync(INVOICE_DIR)) {
+    fs.mkdirSync(INVOICE_DIR, { recursive: true });
+}
+const OUTPUT_FILE = path.join(INVOICE_DIR, 'Zusammenfassung_Uber.pdf');
+const LEDGER_FILE = path.join(INVOICE_DIR, 'uber_ledger.json');
 
 function extractField(text, pattern) {
     const match = text.match(pattern);
@@ -197,7 +200,29 @@ async function run() {
     doc.end();
 
     await new Promise(resolve => stream.on('finish', resolve));
+
+    // Save uber_ledger.json for master report
+    const ledger = invoices.map(inv => ({
+        service: 'uber',
+        serviceDisplayName: 'Uber',
+        id: inv.rechnungsnummer,
+        orderId: inv.rechnungsnummer,
+        invoiceNumber: inv.rechnungsnummer,
+        date: inv.steuerdatum || inv.rechnungsdatum || '-',
+        rechnungsdatum: inv.rechnungsdatum,
+        steuerdatum: inv.steuerdatum,
+        netto: inv.netto,
+        ust: inv.ust,
+        brutto: inv.brutto,
+        taxRate: inv.ustSatz,
+        seller: inv.anbieter,
+        currency: 'EUR',
+        pdfPath: path.join('invoices', 'uber', inv.datei)
+    }));
+    fs.writeFileSync(LEDGER_FILE, JSON.stringify(ledger, null, 2), 'utf8');
+
     console.log(`✅ Gesamtauflistung erstellt: ${OUTPUT_FILE}`);
+    console.log(`✅ Ledger erstellt: ${LEDGER_FILE}`);
     return { success: true, file: OUTPUT_FILE, count: invoices.length, totalBrutto };
 }
 

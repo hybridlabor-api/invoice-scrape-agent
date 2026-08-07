@@ -6,9 +6,7 @@ const rootProfile = path.join(__dirname, '../../.auth-profile/aliexpress');
 const localProfile = path.join(__dirname, '.auth-profile');
 const AUTH_DIR = fs.existsSync(path.dirname(rootProfile)) ? rootProfile : localProfile;
 
-const rootInvoices = path.join(__dirname, '../../invoices/aliexpress');
-const localInvoices = path.join(__dirname, 'invoices');
-const INVOICE_DIR = fs.existsSync(path.dirname(rootInvoices)) ? rootInvoices : localInvoices;
+const INVOICE_DIR = path.join(__dirname, '../../invoices/aliexpress');
 const SCAN_SUMMARY_FILE = path.join(INVOICE_DIR, 'account_scan_summary.json');
 const LEDGER_FILE = path.join(INVOICE_DIR, 'aliexpress_ledger.json');
 
