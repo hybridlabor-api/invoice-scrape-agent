@@ -71,8 +71,12 @@ class EmailBaseService extends BaseService {
 
           console.log(`📥 Downloading Invoice: ${record.orderId} (${record.date} | ${record.brutto}€)`);
           
+          const yearMonth = record.date.substring(0, 7);
+          const subfolder = path.join(this.invoicesDir, yearMonth);
+          if (!fs.existsSync(subfolder)) fs.mkdirSync(subfolder, { recursive: true });
+          
           const pdfFileName = `${record.date}_Order_${record.orderId}.pdf`;
-          const pdfFilePath = path.join(this.invoicesDir, pdfFileName);
+          const pdfFilePath = path.join(subfolder, pdfFileName);
           
           // Generate or save PDF
           await this.generatePdfFromEmail(message.parsed, pdfFilePath, record, { headless });

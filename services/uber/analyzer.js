@@ -16,7 +16,22 @@ function extractField(text, pattern) {
     return match ? match[1].trim() : '';
 }
 
-async function parseInvoice(filePath) {
+function getPdfFiles(dir) {
+    let results = [];
+    const list = fs.readdirSync(dir);
+    list.forEach(file => {
+        const fullPath = path.join(dir, file);
+        const stat = fs.statSync(fullPath);
+        if (stat && stat.isDirectory()) {
+            results = results.concat(getPdfFiles(fullPath));
+        } else if (file.endsWith('.pdf') && !file.startsWith('Zusammenfassung_') && !file.startsWith('Gesamtauflistung_')) {
+            results.push(fullPath);
+        }
+    });
+    return results;
+}
+
+async function parseInvoice(filePath, relativePath) {
     const buffer = fs.readFileSync(filePath);
     const data = await pdf(buffer);
     const text = data.text;
@@ -50,7 +65,7 @@ async function parseInvoice(filePath) {
     const anbieter = anbieterMatch ? anbieterMatch[1].trim() : '';
 
     return {
-        datei: path.basename(filePath),
+        datei: relativePath,
         rechnungsnummer,
         rechnungsdatum,
         steuerdatum,
@@ -69,7 +84,7 @@ async function run() {
         process.exit(1);
     }
 
-    const files = fs.readdirSync(INVOICE_DIR).filter(f => f.endsWith('.pdf'));
+    const files = getPdfFiles(INVOICE_DIR);
     if (files.length === 0) {
         console.error('❌ Keine PDF-Dateien im invoices/ Ordner.');
         process.exit(1);
@@ -80,7 +95,8 @@ async function run() {
     const invoices = [];
     for (const file of files) {
         try {
-            const inv = await parseInvoice(path.join(INVOICE_DIR, file));
+            const relPath = path.relative(INVOICE_DIR, file);
+            const inv = await parseInvoice(file, relPath);
             invoices.push(inv);
             console.log(`  ✅ ${inv.rechnungsnummer} | ${inv.rechnungsdatum} | ${inv.brutto.toFixed(2)}€`);
         } catch(e) {

@@ -297,11 +297,26 @@ async function startAliExpressFetcher() {
     }
 
     // Check which orders are pending (PDF does not exist yet)
-    const existingFiles = new Set(fs.readdirSync(INVOICE_DIR));
+    function getPdfFiles(dir) {
+      let results = [];
+      const list = fs.readdirSync(dir);
+      list.forEach(file => {
+        const fullPath = path.join(dir, file);
+        const stat = fs.statSync(fullPath);
+        if (stat && stat.isDirectory()) {
+          results = results.concat(getPdfFiles(fullPath));
+        } else if (file.endsWith('.pdf')) {
+          results.push(path.basename(fullPath)); // Store basenames for easy matching
+        }
+      });
+      return results;
+    }
+
+    const existingFiles = new Set(getPdfFiles(INVOICE_DIR));
     const isOrderDownloaded = (o) => {
       if (existingFiles.has(`AliExpress-${o.orderDate}-${o.orderId}.pdf`)) return true;
       for (const f of existingFiles) {
-        if (f.includes(o.orderId) && f.endsWith('.pdf')) return true;
+        if (f.includes(o.orderId)) return true;
       }
       return false;
     };
@@ -328,8 +343,11 @@ async function startAliExpressFetcher() {
     for (let i = 0; i < pendingOrders.length; i++) {
       const order = pendingOrders[i];
       let orderDate = order.orderDate || new Date().toISOString().slice(0, 10);
+      let yearMonth = orderDate.substring(0, 7);
       let targetPdfName = `AliExpress-${orderDate}-${order.orderId}.pdf`;
-      let targetPdfPath = path.join(INVOICE_DIR, targetPdfName);
+      let subfolder = path.join(INVOICE_DIR, yearMonth);
+      if (!fs.existsSync(subfolder)) fs.mkdirSync(subfolder, { recursive: true });
+      let targetPdfPath = path.join(subfolder, targetPdfName);
 
       process.stdout.write(`[${i + 1}/${pendingOrders.length}] Order #${order.orderId}... `);
 
@@ -357,7 +375,10 @@ async function startAliExpressFetcher() {
           if (trueDate && trueDate !== orderDate) {
             orderDate = trueDate;
             targetPdfName = `AliExpress-${orderDate}-${order.orderId}.pdf`;
-            targetPdfPath = path.join(INVOICE_DIR, targetPdfName);
+            yearMonth = orderDate.substring(0, 7);
+            subfolder = path.join(INVOICE_DIR, yearMonth);
+            if (!fs.existsSync(subfolder)) fs.mkdirSync(subfolder, { recursive: true });
+            targetPdfPath = path.join(subfolder, targetPdfName);
           }
         }
 
@@ -382,7 +403,7 @@ async function startAliExpressFetcher() {
           storeName: order.storeName,
           totalAmount: exactTotal,
           currency: order.currency || 'EUR',
-          pdfFile: targetPdfName,
+          pdfFile: path.posix.join(yearMonth, targetPdfName),
           downloadedAt: new Date().toISOString()
         };
         fs.writeFileSync(LEDGER_FILE, JSON.stringify(ledger, null, 2));

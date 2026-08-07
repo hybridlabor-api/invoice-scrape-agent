@@ -232,7 +232,10 @@ async function downloadMode(page, activities, startDate, endDate) {
                 }
 
                 const newFilename = `Uber-Bv-${dateForFile}-${invoiceNum}.pdf`;
-                const finalPath = path.join(INVOICE_DIR, newFilename);
+                const yearMonth = dateForFile.substring(0, 7);
+                const subfolder = path.join(INVOICE_DIR, yearMonth);
+                if (!fs.existsSync(subfolder)) fs.mkdirSync(subfolder, { recursive: true });
+                const finalPath = path.join(subfolder, newFilename);
                 fs.copyFileSync(tempPath, finalPath);
                 try { fs.unlinkSync(tempPath); } catch(e) {}
 

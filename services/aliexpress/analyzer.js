@@ -17,7 +17,22 @@ async function analyzeAliExpressInvoices() {
     return;
   }
 
-  const pdfFiles = fs.readdirSync(INVOICE_DIR).filter(f => f.endsWith('.pdf') && f.startsWith('AliExpress-'));
+  function getPdfFiles(dir) {
+    let results = [];
+    const list = fs.readdirSync(dir);
+    list.forEach(file => {
+      const fullPath = path.join(dir, file);
+      const stat = fs.statSync(fullPath);
+      if (stat && stat.isDirectory()) {
+        results = results.concat(getPdfFiles(fullPath));
+      } else if (file.endsWith('.pdf') && file.startsWith('AliExpress-')) {
+        results.push(path.basename(fullPath)); // analyzer currently only needs filename
+      }
+    });
+    return results;
+  }
+
+  const pdfFiles = getPdfFiles(INVOICE_DIR);
   
   if (pdfFiles.length === 0) {
     console.log("❌ Keine AliExpress-Rechnungen (AliExpress-*.pdf) gefunden.");

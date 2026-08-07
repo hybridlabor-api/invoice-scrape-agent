@@ -174,8 +174,12 @@ class AmazonService extends BaseService {
         }
 
         const safeDate = order.date || 'UNKNOWN-DATE';
+        const yearMonth = safeDate.substring(0, 7);
+        const subfolder = path.join(this.invoicesDir, yearMonth);
+        if (!fs.existsSync(subfolder)) fs.mkdirSync(subfolder, { recursive: true });
+
         const pdfFileName = `${safeDate}_Order_${order.orderId}.pdf`;
-        const pdfFilePath = path.join(this.invoicesDir, pdfFileName);
+        const pdfFilePath = path.join(subfolder, pdfFileName);
         const relPdfPath = path.relative(path.resolve(this.invoicesDir, '..', '..'), pdfFilePath);
 
         console.log(`📥 Downloading: ${order.orderId} (${order.date} | ${order.brutto}€)`);
