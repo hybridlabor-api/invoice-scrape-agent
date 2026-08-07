@@ -1,6 +1,6 @@
 {
   "name": "invoice-scrape-agent",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Autonomous, cross-platform Uber & AliExpress tax invoice fetcher, receipt PNG-to-PDF normalizer, and PDF accounting analyzer",
   "main": "index.js",
   "bin": {
