@@ -4,6 +4,25 @@ All notable changes to **BDB Invoice & Receipt Suite** are documented in this fi
 
 ---
 
+## [1.4.16] - 2026-08-07
+
+### 🚀 Added
+- **NPM Version Badge**: Added dynamic NPM version badge to `README.md` to reflect the latest published state natively.
+
+---
+
+## [1.4.11 - 1.4.15] - 2026-08-07
+
+### 🐛 Fixed & Optimized
+- **AliExpress Robust Pagination**: Replaced fragile scrolling loops with the bulletproof 150-pass, 3-second DOM-aware pagination logic from the scanner. Effectively fixed lazy-load stalling for massive accounts (350+ orders).
+- **Windows GUI Spawner**: Fixed background Electron daemon on Windows. Uses `npx.cmd` and `stdio: ignore` to prevent silent CLI execution death on Windows CMD/PowerShell.
+- **AliExpress Browser Crashes**: Added `.catch(() => {})` wrappers to Playwright `waitForTimeout` calls to prevent unhandled promise rejections if the user or the script closes the browser during a wait frame.
+- **Automatic YYYY-MM Subfolders**: Implemented strict `YYYY-MM` month-based subfolder routing for ALL downloaded PDFs (Uber, AliExpress, Amazon, Emails).
+- **Master Analyzer Recursion**: Updated the Master PDF analyzer to scan directories recursively, ensuring the global ledger works flawlessly with the new subfolder structure.
+- **Uber Tax Date Parsing**: Implemented "Steuerdatum vs Rechnungsdatum" parsing distinction in the Uber fetcher to correctly reflect exact trip dates vs billing dates.
+
+---
+
 ## [1.4.2] - 2026-08-07
 
 ### Added
