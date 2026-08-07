@@ -30,7 +30,7 @@ async function handleServiceMenu(serviceId) {
           { name: '⬇️  Alle Rechnungen herunterladen (Komplettes Konto)', value: 'download_all' },
           { name: '📅 Bestimmtes Jahr herunterladen (z.B. 2025, 2026)', value: 'download_year' },
           { name: '📆 Benutzerdefinierten Zeitraum herunterladen', value: 'download_range' },
-          { name: '📊 PDF-Dienst-Auswertung erstellen', value: 'analyze' },
+          { name: '📊 Dienst-Auswertung erstellen (PDF, CSV, HTML)', value: 'analyze' },
           { name: '🔑 Login / Re-Authentifizierung', value: 'auth' },
           new inquirer.Separator(),
           { name: '🔙 Zurück zum Hauptmenü', value: 'back' }
