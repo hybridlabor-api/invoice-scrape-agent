@@ -110,21 +110,17 @@ class AmazonService extends BaseService {
           const results = [];
 
           cards.forEach(card => {
-            const orderIdEl = card.querySelector('[data-order-id]') || 
-                              card.querySelector('.yohtmlc-order-id span:last-child') ||
-                              card.querySelector('bdi[dir="ltr"]');
-            const dateEl = card.querySelector('.a-color-secondary.value, .yohtmlc-order-date span:last-child');
-            const totalEl = card.querySelector('.yohtmlc-order-total .value, .yohtmlc-order-total span:last-child');
+            const text = card.innerText || '';
+            const orderIdMatch = text.match(/(?:BESTELLNR\.|Order #)\s*([A-Z0-9-]+)/i) || text.match(/([0-9]{3}-[0-9]{7}-[0-9]{7})/);
+            const dateMatch = text.match(/(?:BESTELLUNG AUFGEGEBEN|ORDER PLACED)\n([^\n]+)/i);
+            const totalMatch = text.match(/(?:SUMME|TOTAL)\n([0-9,.]+)\s*€/i) || text.match(/([0-9,.]+)\s*€/i);
             
-            const invoiceLinkEl = card.querySelector('a[href*="invoice"], a[href*="print.html"], a[href*="summary"]');
-
-            const orderId = orderIdEl ? orderIdEl.innerText.trim() : '';
-            const dateText = dateEl ? dateEl.innerText.trim() : '';
-            const totalText = totalEl ? totalEl.innerText.trim() : '';
-            const invoiceUrl = invoiceLinkEl ? invoiceLinkEl.getAttribute('href') : '';
-
+            const orderId = orderIdMatch ? orderIdMatch[1].trim() : '';
+            const dateText = dateMatch ? dateMatch[1].trim() : '';
+            const totalText = totalMatch ? totalMatch[1].trim() : '';
+            
             if (orderId) {
-              results.push({ orderId, dateText, totalText, invoiceUrl });
+              results.push({ orderId, dateText, totalText });
             }
           });
           return results;
@@ -132,7 +128,6 @@ class AmazonService extends BaseService {
 
         for (const raw of pageOrders) {
           const record = this.parseOrderCardData(raw);
-          record.invoiceUrl = raw.invoiceUrl ? (raw.invoiceUrl.startsWith('http') ? raw.invoiceUrl : `${this.baseUrl}${raw.invoiceUrl}`) : '';
           orders.push(record);
         }
 
@@ -186,16 +181,29 @@ class AmazonService extends BaseService {
         console.log(`📥 Downloading: ${order.orderId} (${order.date} | ${order.brutto}€)`);
 
         try {
-          const printUrl = order.invoiceUrl || `${this.baseUrl}/gp/css/summary/print.html?orderID=${order.orderId}`;
-          await page.goto(printUrl, { waitUntil: 'networkidle', timeout: 30000 });
-
-          // Render clean A4 PDF
-          await page.pdf({
-            path: pdfFilePath,
-            format: 'A4',
-            printBackground: true,
-            margin: { top: '15mm', bottom: '15mm', left: '15mm', right: '15mm' }
-          });
+          const popoverUrl = `${this.baseUrl}/your-orders/invoice/popover?orderId=${order.orderId}`;
+          const popoverRes = await page.request.get(popoverUrl);
+          const popoverHtml = await popoverRes.text();
+          
+          const nativePdfMatch = popoverHtml.match(/\/documents\/download\/[a-f0-9-]+\/invoice\.pdf/);
+          
+          if (nativePdfMatch) {
+            console.log(`   🔗 Found native PDF invoice! Downloading...`);
+            const downloadUrl = `${this.baseUrl}${nativePdfMatch[0]}`;
+            const pdfRes = await page.request.get(downloadUrl);
+            const pdfBuffer = await pdfRes.body();
+            fs.writeFileSync(pdfFilePath, pdfBuffer);
+          } else {
+            console.log(`   🖨️ No native PDF found. Rendering HTML fallback summary...`);
+            const printUrl = `${this.baseUrl}/gp/css/summary/print.html?orderID=${order.orderId}`;
+            await page.goto(printUrl, { waitUntil: 'networkidle', timeout: 30000 });
+            await page.pdf({
+              path: pdfFilePath,
+              format: 'A4',
+              printBackground: true,
+              margin: { top: '15mm', bottom: '15mm', left: '15mm', right: '15mm' }
+            });
+          }
 
           order.pdfPath = relPdfPath;
           this.saveLedgerRecord(order);

@@ -1,11 +1,10 @@
 {
-  "name": "bdb-dev-uber-recipe-wrapper",
-  "version": "1.1.1",
+  "name": "invoice-scrape-agent",
+  "version": "1.2.0",
   "description": "Autonomous, cross-platform Uber & AliExpress tax invoice fetcher, receipt PNG-to-PDF normalizer, and PDF accounting analyzer",
   "main": "index.js",
   "bin": {
     "invoice-scrape-agent": "index.js",
-    "bdb-dev-uber-recipe-wrapper": "index.js",
     "uber-invoice-agent": "index.js",
     "aliexpress-invoice-agent": "index.js"
   },
