@@ -68,6 +68,16 @@ console.error = (...args) => {
   }
 };
 
+// Also intercept process.stdout.write (used heavily for progress bars)
+const originalStdoutWrite = process.stdout.write.bind(process.stdout);
+process.stdout.write = (chunk, encoding, callback) => {
+  try { originalStdoutWrite(chunk, encoding, callback); } catch (e) {}
+  if (mainWindow) {
+    try { mainWindow.webContents.send('backend-log', { type: 'raw', message: chunk.toString() }); } catch(e) {}
+  }
+  return true;
+};
+
 // IPC Handlers
 ipcMain.handle('get-services', () => {
   let services = ServiceRegistry.list().map(s => {

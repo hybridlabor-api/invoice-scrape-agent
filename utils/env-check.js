@@ -7,14 +7,27 @@ function checkDependencies() {
 
   let hasErrors = false;
 
-  // 1. Check Node Version
+  // 1. Check Node Version (Electron 43 requires >= 22.12)
   const nodeVersion = process.versions.node;
-  const majorNode = parseInt(nodeVersion.split('.')[0], 10);
-  if (majorNode < 18) {
-    console.error(`❌ [ERROR] Node.js version 18 or higher is required. You have ${nodeVersion}.`);
+  const [majorNode, minorNode] = nodeVersion.split('.').map(Number);
+  if (majorNode < 22 || (majorNode === 22 && minorNode < 12)) {
+    console.error(`❌ [ERROR] Node.js >= 22.12 is required (Electron 43 dependency). You have ${nodeVersion}.`);
     hasErrors = true;
   } else {
-    console.log(`✅ Node.js: v${nodeVersion} (Satisfies >= 18)`);
+    console.log(`✅ Node.js: v${nodeVersion} (Satisfies >= 22.12)`);
+  }
+
+  // 2. Check Electron binary
+  try {
+    const electronPath = require('electron');
+    const fs = require('fs');
+    if (typeof electronPath === 'string' && fs.existsSync(electronPath)) {
+      console.log(`✅ Electron: Binary found at ${electronPath}`);
+    } else {
+      console.warn(`⚠️ [WARNING] Electron package found but binary missing. Run: node node_modules/electron/install.js`);
+    }
+  } catch (e) {
+    console.warn(`⚠️ [WARNING] Electron not installed. GUI will not work until 'npm install' is run.`);
   }
 
   // 2. Check Python (Optional but recommended for some internal utils)

@@ -330,15 +330,38 @@ async function main() {
     } else if (selected === 'start_gui') {
       const { spawn } = require('child_process');
       console.log("\n🚀 Starte BDB Invoice Suite GUI...\n");
-      const isWin = process.platform === 'win32';
-      const npxCmd = isWin ? 'npx.cmd' : 'npx';
       
-      const guiProcess = spawn(npxCmd, ['--yes', 'electron', path.join(__dirname, 'electron', 'main.js')], {
-        stdio: 'ignore',
-        detached: true
+      let electronPath;
+      try {
+        electronPath = require('electron');
+      } catch (e) {
+        console.error('❌ Electron ist nicht installiert. Bitte führe "npm install" im Projektverzeichnis aus.');
+        await waitPrompt();
+        break;
+      }
+      
+      const electronMain = path.join(__dirname, 'electron', 'main.js');
+      const guiProcess = spawn(electronPath, [electronMain], {
+        detached: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: false
       });
-      guiProcess.unref();
-      console.log(`✅ GUI erfolgreich im Hintergrund gestartet!`);
+      
+      let launched = false;
+      guiProcess.once('spawn', () => {
+        launched = true;
+        guiProcess.unref();
+        console.log('✅ GUI erfolgreich im Hintergrund gestartet!');
+      });
+      
+      guiProcess.once('error', (error) => {
+        console.error(`❌ GUI konnte nicht gestartet werden: ${error.message}`);
+      });
+      
+      guiProcess.stderr?.once('data', (data) => {
+        if (!launched) console.error(`⚠️ Electron Fehler: ${data.toString().trim()}`);
+      });
+      
       await waitPrompt();
     } else if (selected === 'update') {
       console.clear();

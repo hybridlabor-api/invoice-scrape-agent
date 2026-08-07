@@ -367,10 +367,28 @@ async function startAliExpressFetcher() {
         await page.waitForSelector('.container--title--1f37WzH, [class*="container--title"], [class*="summary--left"], [class*="summary"]', { timeout: 8000 }).catch(() => {});
         await page.waitForTimeout(500);
 
-        // Extract exact date & total from Tax page DOM
+        // Check if page is 404 / lost
+        const isLost = await page.evaluate(() => {
+          return document.body.innerText.includes('Oops, the page seems to be lost!') || 
+                 document.body.innerText.includes('Oops, the page seems to be lost');
+        });
+
+        if (isLost) {
+          console.log(`\n   ⚠️ Rechnung nicht verfügbar. Fallback auf Bestelldetails...`);
+          const fallbackUrl = `https://www.aliexpress.com/p/order/detail.html?orderId=${order.orderId}`;
+          await page.goto(fallbackUrl, { waitUntil: 'networkidle', timeout: 30000 });
+          await page.waitForTimeout(2000);
+          
+          // Try to hide floating elements before printing fallback
+          await page.evaluate(() => {
+            document.querySelectorAll('[class*="float"], [class*="fixed"], [class*="sticky"]').forEach(el => el.style.display = 'none');
+          }).catch(() => {});
+        }
+
+        // Extract exact date & total from DOM (if available)
         const pageInfo = await page.evaluate(() => {
           const text = document.body.innerText || '';
-          const dateMatch = text.match(/Order time:\s*([A-Za-z0-9,.\s-]+)/i);
+          const dateMatch = text.match(/Order time:\s*([A-Za-z0-9,.\s-]+)/i) || text.match(/(?:Order time|Bestellzeit)[:\s]+([0-9A-Za-z.,\s-]+)/i);
           const rawDate = dateMatch ? dateMatch[1].trim() : null;
 
           const totalMatch = text.match(/Total:\s*([0-9]+[.,][0-9]{2})\s*(?:€|\$|EUR|USD)?/i) ||
@@ -404,7 +422,12 @@ async function startAliExpressFetcher() {
 
         existingFiles.add(targetPdfName);
         downloadedCount++;
-        console.log(`✅ ${targetPdfName} (${exactTotal ? exactTotal.toFixed(2) : '-'} EUR)`);
+        
+        if (isLost) {
+          console.log(`   ✅ ${targetPdfName} (Ersatz-Beleg gespeichert)`);
+        } else {
+          console.log(`✅ ${targetPdfName} (${exactTotal ? exactTotal.toFixed(2) : '-'} EUR)`);
+        }
 
         // Save ledger entry
         ledger[order.orderId] = {

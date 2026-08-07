@@ -159,6 +159,32 @@ function selectService(service, btnEl) {
 
 function logToTerminal(msg, type = 'info') {
   const terminal = document.getElementById('terminal');
+  
+  if (type === 'raw') {
+    // raw data from process.stdout.write
+    // Handle carriage returns (\r) often used for progress bars
+    if (msg.includes('\r')) {
+       // A simple approach for a web terminal is just replacing the last line if \r is at start
+       // For a cleaner look in HTML, we will just parse the last segment after \r
+       const parts = msg.split('\r');
+       msg = parts[parts.length - 1];
+       
+       // If the last element in terminal is a raw span, replace its text instead of appending
+       const lastChild = terminal.lastChild;
+       if (lastChild && lastChild.className === 'text-slate-300') {
+          lastChild.textContent = msg;
+          terminal.scrollTop = terminal.scrollHeight;
+          return;
+       }
+    }
+    const span = document.createElement('span');
+    span.className = 'text-slate-300 whitespace-pre-wrap';
+    span.textContent = msg;
+    terminal.appendChild(span);
+    terminal.scrollTop = terminal.scrollHeight;
+    return;
+  }
+
   const span = document.createElement('span');
   
   if (type === 'error') {
@@ -167,6 +193,8 @@ function logToTerminal(msg, type = 'info') {
     span.className = 'text-emerald-400';
   } else if (msg.includes('⚠️')) {
     span.className = 'text-amber-400';
+  } else {
+    span.className = 'text-slate-300';
   }
   
   span.textContent = msg + '\n';
