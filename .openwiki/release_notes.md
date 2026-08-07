@@ -4,6 +4,18 @@ All notable changes to **BDB Invoice & Receipt Suite** are documented in this fi
 
 ---
 
+## [1.5.9] - 2026-08-07
+
+### 🚀 Added & Fixed
+- **AliExpress Robust Date Range & Year Filtering**:
+  - Implemented smart range parser supporting single years (`2025`), year ranges (`2026-2025`, `2025-2026`, `2024..2026`, `2025, 2026`), and swapped start/end dates.
+  - Added early-exit optimization during live order scanning: as soon as order dates exceed the minimum requested year/date, the scanner terminates further scraping passes immediately.
+- **Permanent Expired & Dead Order Handling**:
+  - Outdated or expired orders (404 / "Oops, the page seems to be lost" / "Order has expired") are permanently recorded in `ledger.json` with `status: 'expired'`.
+  - Expired historical orders (e.g., from 2018–2020) are automatically marked as verified and skipped on subsequent runs, preventing infinite retry attempts and unnecessary network load.
+
+---
+
 ## [1.5.8] - 2026-08-07
 
 ### 🚀 Added & Fixed

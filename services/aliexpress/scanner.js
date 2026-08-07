@@ -62,17 +62,62 @@ function normalizeDate(rawDate) {
   return new Date().toISOString().slice(0, 10);
 }
 
-async function scanAliExpressAccount() {
+function parseDateFilter(options = {}) {
+  let minDate = null;
+  let maxDate = null;
+  const allowedYears = new Set();
+
+  if (options.year) {
+    const rawYear = String(options.year).trim();
+    const yearMatches = rawYear.match(/\b(20\d{2})\b/g);
+    if (yearMatches && yearMatches.length > 0) {
+      const yearNums = yearMatches.map(y => parseInt(y, 10));
+      const minY = Math.min(...yearNums);
+      const maxY = Math.max(...yearNums);
+      for (let y = minY; y <= maxY; y++) allowedYears.add(String(y));
+      minDate = `${minY}-01-01`;
+      maxDate = `${maxY}-12-31`;
+    }
+  }
+
+  if (options.startDate || options.endDate) {
+    let s = options.startDate ? String(options.startDate).trim() : null;
+    let e = options.endDate ? String(options.endDate).trim() : null;
+
+    if (s && /^\d{4}$/.test(s)) s = `${s}-01-01`;
+    if (s && /^\d{4}-\d{2}$/.test(s)) s = `${s}-01`;
+    if (e && /^\d{4}$/.test(e)) e = `${e}-12-31`;
+    if (e && /^\d{4}-\d{2}$/.test(e)) e = `${e}-31`;
+
+    if (s && e && s > e) {
+      const tmp = s;
+      s = e;
+      e = tmp;
+    }
+
+    if (s) minDate = minDate ? (s < minDate ? s : minDate) : s;
+    if (e) maxDate = maxDate ? (e > maxDate ? e : maxDate) : e;
+  }
+
+  return { minDate, maxDate, allowedYears };
+}
+
+async function scanAliExpressAccount(options = {}) {
   if (!fs.existsSync(AUTH_DIR)) {
     console.error("\n❌ FEHLER: Du bist nicht bei AliExpress eingeloggt!");
     console.error("Bitte führe zuerst den Login aus: npm run auth:aliexpress\n");
     process.exit(1);
   }
 
+  const filter = parseDateFilter(options);
+
   console.log("\n======================================================");
   console.log("   🔍 AliExpress Account Scan & Order-Analyse 🔍      ");
   console.log("======================================================\n");
-  console.log("🌐 Starte Browser und analysiere vollständigen Bestellverlauf...\n");
+  if (filter.minDate || filter.maxDate) {
+    console.log(`🎯 Aktiver Datumsfilter: ${filter.minDate || 'Beginn'} bis ${filter.maxDate || 'Heute'}`);
+  }
+  console.log("🌐 Starte Browser und analysiere Bestellverlauf...\n");
 
   let context;
   try {
@@ -141,7 +186,7 @@ async function scanAliExpressAccount() {
     let pass = 1;
     let keepScanning = true;
     let consecutiveUnchanged = 0;
-    const maxPasses = 150; // Scan up to 150 clicks
+    const maxPasses = options.maxPages || 150;
 
     while (keepScanning && pass <= maxPasses) {
       // 1. Locate the exact 'View orders' button
@@ -207,6 +252,17 @@ async function scanAliExpressAccount() {
 
       process.stdout.write(`\r🔄 Klick ${pass}: ${collectedOrders.size} Bestellungen erfasst...`);
 
+      // Early exit if older than minDate
+      if (filter.minDate && collectedOrders.size > 0) {
+        const ordersList = Array.from(collectedOrders.values());
+        const oldestFound = ordersList[ordersList.length - 1]?.orderDate;
+        if (oldestFound && oldestFound < filter.minDate) {
+          console.log(`\n🎯 Mindestdatum ${filter.minDate} erreicht. Beende Scan.`);
+          keepScanning = false;
+          break;
+        }
+      }
+
       if (collectedOrders.size === beforeCount && !btnExists) {
         consecutiveUnchanged++;
         if (consecutiveUnchanged >= 3) {
@@ -220,7 +276,7 @@ async function scanAliExpressAccount() {
 
     console.log("\n");
 
-    const allOrders = Array.from(collectedOrders.values());
+    let allOrders = Array.from(collectedOrders.values());
 
     if (allOrders.length === 0) {
       console.log("⚠️ Keine Bestellungen im AliExpress-Konto gefunden.");
@@ -229,6 +285,17 @@ async function scanAliExpressAccount() {
 
     // Sort descending by date
     allOrders.sort((a, b) => (b.orderDate || '').localeCompare(a.orderDate || ''));
+
+    // Apply date filtering if requested
+    if (filter.minDate || filter.maxDate) {
+      allOrders = allOrders.filter(o => {
+        const d = o.orderDate;
+        if (!d) return false;
+        if (filter.minDate && d < filter.minDate) return false;
+        if (filter.maxDate && d > filter.maxDate) return false;
+        return true;
+      });
+    }
 
     // Check existing downloaded PDFs
     const existingPdfs = new Set(
@@ -261,9 +328,9 @@ async function scanAliExpressAccount() {
     console.log("======================================================");
     console.log("          📊 KONTO-ANALYSE ERGEBNIS 📊                ");
     console.log("======================================================");
-    console.log(`📦 Bestellungen gesamt:    ${allOrders.length}`);
-    console.log(`📅 Älteste Bestellung:     ${allOrders[allOrders.length - 1].orderDate}`);
-    console.log(`📅 Neueste Bestellung:     ${allOrders[0].orderDate}`);
+    console.log(`📦 Bestellungen erfasst:   ${allOrders.length}`);
+    console.log(`📅 Älteste Bestellung:     ${allOrders[allOrders.length - 1]?.orderDate || '-'}`);
+    console.log(`📅 Neueste Bestellung:     ${allOrders[0]?.orderDate || '-'}`);
     console.log(`💰 Gesamtausgaben erfasst: ${totalSpent.toFixed(2)} €\n`);
 
     console.log("--------------------------------------------------------------------------------");
@@ -286,8 +353,8 @@ async function scanAliExpressAccount() {
     const summaryData = {
       scannedAt: new Date().toISOString(),
       totalOrders: allOrders.length,
-      earliestOrderDate: allOrders[allOrders.length - 1].orderDate,
-      latestOrderDate: allOrders[0].orderDate,
+      earliestOrderDate: allOrders[allOrders.length - 1]?.orderDate,
+      latestOrderDate: allOrders[0]?.orderDate,
       totalAmountSpent: parseFloat(totalSpent.toFixed(2)),
       years: yearStats,
       orders: allOrders
@@ -304,10 +371,17 @@ async function scanAliExpressAccount() {
 }
 
 if (require.main === module) {
-  scanAliExpressAccount().catch(err => {
+  const args = process.argv.slice(2);
+  const opts = {};
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--year' && args[i + 1]) opts.year = args[++i];
+    if (args[i] === '--start' && args[i + 1]) opts.startDate = args[++i];
+    if (args[i] === '--end' && args[i + 1]) opts.endDate = args[++i];
+  }
+  scanAliExpressAccount(opts).catch(err => {
     console.error("❌ Fehler beim Scan:", err.message);
     process.exit(1);
   });
 }
 
-module.exports = { scanAliExpressAccount };
+module.exports = { scanAliExpressAccount, parseDateFilter };

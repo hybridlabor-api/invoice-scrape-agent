@@ -53,9 +53,9 @@ async function handleServiceMenu(serviceId) {
           {
             type: 'input',
             name: 'year',
-            message: 'Welches Jahr möchtest du herunterladen? (z.B. 2025):',
+            message: 'Welches Jahr oder Zeitraum möchtest du herunterladen? (z.B. 2025 oder 2025-2026):',
             default: new Date().getFullYear().toString(),
-            validate: (input) => /^\d{4}$/.test(input) || 'Bitte ein 4-stelliges Jahr eingeben!'
+            validate: (input) => /^[\d\s,.-]+$/.test(input.trim()) || 'Bitte ein gültiges Jahr oder Zeitraum (z.B. 2025, 2025-2026) eingeben!'
           }
         ]);
         await service.fetch({ year });

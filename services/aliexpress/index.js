@@ -26,9 +26,15 @@ class AliExpressService extends BaseService {
   }
 
   async scan(options = {}) {
+    const args = ['--scan'];
+    if (options.year) args.push('--year', String(options.year));
+    if (options.startDate) args.push('--start', options.startDate);
+    if (options.endDate) args.push('--end', options.endDate);
+    if (options.rescan) args.push('--rescan');
+
     return new Promise((resolve, reject) => {
       const fetcherScript = path.join(__dirname, 'fetcher.js');
-      const child = fork(fetcherScript, ['--scan'], { stdio: 'inherit' });
+      const child = fork(fetcherScript, args, { stdio: 'inherit' });
       child.on('exit', () => resolve(this.loadLedger()));
       child.on('error', reject);
     });
@@ -41,6 +47,8 @@ class AliExpressService extends BaseService {
     if (options.startDate) args.push('--start', options.startDate);
     if (options.endDate) args.push('--end', options.endDate);
     if (options.limit) args.push('--limit', String(options.limit));
+    if (options.rescan) args.push('--rescan');
+    if (options.includeExpired) args.push('--include-expired');
 
     return new Promise((resolve, reject) => {
       const fetcherScript = path.join(__dirname, 'fetcher.js');
