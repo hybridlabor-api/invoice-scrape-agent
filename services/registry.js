@@ -65,8 +65,8 @@ class ServiceRegistry {
     const entries = fs.readdirSync(servicesDir, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.isDirectory() && !['base', 'generator', 'unified', 'scheduler'].includes(entry.name)) {
-        const indexPath = path.join(servicesDir, entry.name, 'index.js');
-        const servicePath = path.join(servicesDir, entry.name, `${entry.name}.service.js`);
+        const indexPath = path.resolve(servicesDir, entry.name, 'index.js');
+        const servicePath = path.resolve(servicesDir, entry.name, `${entry.name}.service.js`);
         
         let loadedModule = null;
         try {
