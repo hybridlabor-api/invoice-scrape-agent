@@ -4,6 +4,7 @@ const fs = require('fs');
 const ServiceRegistry = require('../services/registry');
 const MasterAnalyzer = require('../services/unified/master-analyzer');
 const { scaffoldService } = require('../services/generator/scaffold');
+const { getInvoicesDir, getUserDataDir } = require('../utils/paths');
 
 // Discover services
 ServiceRegistry.autoDiscover(path.join(__dirname, '../services'));
@@ -109,13 +110,13 @@ ipcMain.handle('get-services', () => {
 });
 
 ipcMain.handle('open-invoices', async () => {
-  const invDir = path.join(__dirname, '..', 'invoices');
+  const invDir = getInvoicesDir();
   if (!fs.existsSync(invDir)) fs.mkdirSync(invDir, { recursive: true });
   await shell.openPath(invDir);
 });
 
 ipcMain.handle('save-imap', async (event, data) => {
-  const envPath = path.resolve(__dirname, '..', '.env');
+  const envPath = path.join(getUserDataDir(), '.env');
   let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
   
   const updateEnv = (key, val) => {

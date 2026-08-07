@@ -3,6 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const envPath = path.join(__dirname, '.env');
 
+const { getAuthDir } = require('../../utils/paths');
+
 (async () => {
   console.log("==================================================================");
   console.log("🔐 AUTO-LOGIN STARTER");
@@ -10,9 +12,7 @@ const envPath = path.join(__dirname, '.env');
   console.log("Bitte logge dich bei Uber ein. Das Skript wartet auf den Erfolg...");
   console.log("==================================================================");
 
-  const userDataDir = fs.existsSync(path.join(__dirname, '../../.auth-profile'))
-    ? path.join(__dirname, '../../.auth-profile')
-    : path.join(__dirname, '.auth-profile');
+  const userDataDir = getAuthDir('uber');
   let context;
   try {
     // Stealth-Modus für Cloudflare + Permanentes Profil

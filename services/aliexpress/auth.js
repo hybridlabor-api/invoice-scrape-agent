@@ -2,13 +2,9 @@ const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
 
-const rootProfile = path.join(__dirname, '../../.auth-profile/aliexpress');
-const localProfile = path.join(__dirname, '.auth-profile');
-const AUTH_DIR = fs.existsSync(path.dirname(rootProfile)) ? rootProfile : localProfile;
+const { getAuthDir } = require('../../utils/paths');
 
-if (!fs.existsSync(AUTH_DIR)) {
-  fs.mkdirSync(AUTH_DIR, { recursive: true });
-}
+const AUTH_DIR = getAuthDir('aliexpress');
 
 async function loginAliExpress() {
   console.log("\n======================================================");

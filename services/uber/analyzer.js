@@ -3,13 +3,11 @@ const path = require('path');
 const pdf = require('pdf-parse');
 const PDFDocument = require('pdfkit');
 
-const rootInvoices = path.join(__dirname, '../../invoices/uber');
-const INVOICE_DIR = rootInvoices;
-if (!fs.existsSync(INVOICE_DIR)) {
-    fs.mkdirSync(INVOICE_DIR, { recursive: true });
-}
+const { getInvoicesDir, getLedgerFile } = require('../../utils/paths');
+
+const INVOICE_DIR = getInvoicesDir('uber');
 const OUTPUT_FILE = path.join(INVOICE_DIR, 'Zusammenfassung_Uber.pdf');
-const LEDGER_FILE = path.join(INVOICE_DIR, 'uber_ledger.json');
+const LEDGER_FILE = getLedgerFile('uber');
 
 function extractField(text, pattern) {
     const match = text.match(pattern);

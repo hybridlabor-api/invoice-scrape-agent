@@ -4,11 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const pdf = require('pdf-parse');
 
-const rootInvoices = path.join(__dirname, '../../invoices/uber');
-const INVOICE_DIR = rootInvoices;
-if (!fs.existsSync(INVOICE_DIR)) {
-    fs.mkdirSync(INVOICE_DIR, { recursive: true });
-}
+const { getInvoicesDir, getAuthDir } = require('../../utils/paths');
+
+const INVOICE_DIR = getInvoicesDir('uber');
 
 const monthMap = {
     'jan': 0, 'feb': 1, 'mär': 2, 'mar': 2, 'apr': 3,
@@ -60,9 +58,7 @@ function parseSubtitleDate(subtitle) {
 
 
 async function createContext() {
-    const rootProfile = path.join(__dirname, '../../.auth-profile');
-    const localProfile = path.join(__dirname, '.auth-profile');
-    const userDataDir = fs.existsSync(rootProfile) ? rootProfile : (fs.existsSync(localProfile) ? localProfile : rootProfile);
+    const userDataDir = getAuthDir('uber');
     let context;
     try {
         context = await chromium.launchPersistentContext(userDataDir, {

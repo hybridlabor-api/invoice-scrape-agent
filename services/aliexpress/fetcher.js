@@ -3,16 +3,11 @@ const path = require('path');
 const fs = require('fs');
 const { convertPngToA4Pdf } = require('../../utils/pdf-converter');
 
-const rootProfile = path.join(__dirname, '../../.auth-profile/aliexpress');
-const localProfile = path.join(__dirname, '.auth-profile');
-const AUTH_DIR = fs.existsSync(path.dirname(rootProfile)) ? rootProfile : localProfile;
+const { getInvoicesDir, getAuthDir, getLedgerFile } = require('../../utils/paths');
 
-const rootInvoices = path.join(__dirname, '../../invoices/aliexpress');
-const INVOICE_DIR = rootInvoices;
-if (!fs.existsSync(INVOICE_DIR)) {
-  fs.mkdirSync(INVOICE_DIR, { recursive: true });
-}
-const LEDGER_FILE = path.join(INVOICE_DIR, 'aliexpress_ledger.json');
+const AUTH_DIR = getAuthDir('aliexpress');
+const INVOICE_DIR = getInvoicesDir('aliexpress');
+const LEDGER_FILE = getLedgerFile('aliexpress');
 
 function parseArgs() {
   const args = process.argv.slice(2);

@@ -2,9 +2,9 @@ const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
 
-const rootProfile = path.join(__dirname, '../../.auth-profile/aliexpress');
-const localProfile = path.join(__dirname, '.auth-profile');
-const AUTH_DIR = fs.existsSync(path.dirname(rootProfile)) ? rootProfile : localProfile;
+const { getAuthDir } = require('../../utils/paths');
+
+const AUTH_DIR = getAuthDir('aliexpress');
 
 async function openOrdersPage() {
   console.log("\n🌐 Öffne AliExpress-Bestellungen in einem einzelnen Tab...");

@@ -2,10 +2,11 @@ const fs = require('fs');
 const path = require('path');
 const PDFDocument = require('pdfkit');
 
+const { getInvoicesDir } = require('../../utils/paths');
+
 class MasterAnalyzer {
   constructor({ baseDir = null } = {}) {
-    this.baseDir = baseDir || path.resolve(__dirname, '../../');
-    this.invoicesDir = path.join(this.baseDir, 'invoices');
+    this.invoicesDir = baseDir ? path.join(baseDir, 'invoices') : getInvoicesDir();
     this.outputPdf = path.join(this.invoicesDir, 'Gesamtauflistung_Master.pdf');
     this.outputCsv = path.join(this.invoicesDir, 'master_ledger.csv');
     this.outputJson = path.join(this.invoicesDir, 'master_ledger.json');

@@ -2,17 +2,12 @@ const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
 
-const rootProfile = path.join(__dirname, '../../.auth-profile/aliexpress');
-const localProfile = path.join(__dirname, '.auth-profile');
-const AUTH_DIR = fs.existsSync(path.dirname(rootProfile)) ? rootProfile : localProfile;
+const { getInvoicesDir, getAuthDir, getLedgerFile } = require('../../utils/paths');
 
-const INVOICE_DIR = path.join(__dirname, '../../invoices/aliexpress');
+const AUTH_DIR = getAuthDir('aliexpress');
+const INVOICE_DIR = getInvoicesDir('aliexpress');
 const SCAN_SUMMARY_FILE = path.join(INVOICE_DIR, 'account_scan_summary.json');
-const LEDGER_FILE = path.join(INVOICE_DIR, 'aliexpress_ledger.json');
-
-if (!fs.existsSync(INVOICE_DIR)) {
-  fs.mkdirSync(INVOICE_DIR, { recursive: true });
-}
+const LEDGER_FILE = getLedgerFile('aliexpress');
 
 const monthMap = {
   'jan': 0, 'feb': 1, 'mar': 2, 'mär': 2, 'apr': 3, 'may': 4, 'mai': 4,

@@ -7,6 +7,8 @@ const MONTH_MAP = {
   'jun': 5, 'jul': 6, 'aug': 7, 'sep': 8, 'oct': 9, 'okt': 9, 'nov': 10, 'dec': 11, 'dez': 11
 };
 
+const { getUserDataDir, getInvoicesDir, getAuthDir, getLedgerFile } = require('../../utils/paths');
+
 class BaseService {
   /**
    * @param {Object} config
@@ -23,12 +25,21 @@ class BaseService {
     this.icon = icon || '🧾';
     this.authUrl = authUrl;
 
-    const root = baseDir || path.resolve(__dirname, '../../');
-    this.invoicesDir = path.join(root, 'invoices', this.id);
-    this.profileDir = path.join(root, '.auth-profile', this.id);
-    this.ledgerFile = path.join(this.invoicesDir, `${this.id}_ledger.json`);
+    if (baseDir) {
+      this.invoicesDir = path.join(baseDir, 'invoices', this.id);
+      this.profileDir = path.join(baseDir, '.auth-profile', this.id);
+      this.ledgerFile = path.join(this.invoicesDir, `${this.id}_ledger.json`);
+    } else {
+      this.invoicesDir = getInvoicesDir(this.id);
+      this.profileDir = getAuthDir(this.id);
+      this.ledgerFile = getLedgerFile(this.id);
+    }
 
     this.ensureDirectories();
+  }
+
+  static getUserDataDir() {
+    return getUserDataDir();
   }
 
   ensureDirectories() {

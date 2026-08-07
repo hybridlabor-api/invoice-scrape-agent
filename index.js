@@ -7,6 +7,7 @@ const fs = require('fs');
 const ServiceRegistry = require('./services/registry');
 const MasterAnalyzer = require('./services/unified/master-analyzer');
 const { scaffoldService } = require('./services/generator/scaffold');
+const { getInvoicesDir, getUserDataDir } = require('./utils/paths');
 
 // Initialize and discover services
 ServiceRegistry.autoDiscover(path.join(__dirname, 'services'));
@@ -300,7 +301,7 @@ async function main() {
       await handleScaffoldMenu();
       ServiceRegistry.autoDiscover(path.join(__dirname, 'services'));
     } else if (selected === 'open_folder') {
-      const invDir = path.join(__dirname, 'invoices');
+      const invDir = getInvoicesDir();
       if (!fs.existsSync(invDir)) fs.mkdirSync(invDir, { recursive: true });
       const isMac = process.platform === 'darwin';
       const isWin = process.platform === 'win32';

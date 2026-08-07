@@ -2,8 +2,10 @@ const fs = require('fs');
 const path = require('path');
 const PDFDocument = require('pdfkit');
 
-const INVOICE_DIR = path.join(__dirname, '../../invoices/aliexpress');
-const LEDGER_FILE = path.join(INVOICE_DIR, 'aliexpress_ledger.json');
+const { getInvoicesDir, getLedgerFile } = require('../../utils/paths');
+
+const INVOICE_DIR = getInvoicesDir('aliexpress');
+const LEDGER_FILE = getLedgerFile('aliexpress');
 const OUTPUT_PDF = path.join(INVOICE_DIR, 'Gesamtauflistung.pdf');
 const OUTPUT_JSON = path.join(INVOICE_DIR, 'Gesamtauflistung.json');
 
