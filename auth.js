@@ -10,12 +10,15 @@ const envPath = path.join(__dirname, '.env');
   console.log("Bitte logge dich bei Uber ein. Das Skript wartet auf den Erfolg...");
   console.log("==================================================================");
 
-  let browser;
+  const userDataDir = path.join(__dirname, '.auth-profile');
+  let context;
   try {
-    // Stealth-Modus für Cloudflare: Wir verstecken die Tatsache, dass es automatisiert ist
-    browser = await chromium.launch({ 
+    // Stealth-Modus für Cloudflare + Permanentes Profil
+    context = await chromium.launchPersistentContext(userDataDir, { 
       headless: false, 
       channel: 'chrome',
+      viewport: null,
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
       args: [
         '--disable-blink-features=AutomationControlled',
         '--start-maximized'
@@ -24,18 +27,13 @@ const envPath = path.join(__dirname, '.env');
     });
   } catch (e) {
     console.log("⚠️ Chrome konnte nicht gefunden werden. Fallback auf Standard-Chromium...");
-    browser = await chromium.launch({ headless: false });
+    context = await chromium.launchPersistentContext(userDataDir, { headless: false });
   }
-  
-  const context = await browser.newContext({
-    viewport: null,
-    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
-  });
   
   // Timeout auf unendlich setzen
   context.setDefaultTimeout(0);
   
-  const page = await context.newPage();
+  const page = context.pages().length > 0 ? context.pages()[0] : await context.newPage();
 
   // navigator.webdriver = false setzen, um Bot-Protection zu umgehen
   await page.addInitScript(() => {
@@ -78,6 +76,6 @@ const envPath = path.join(__dirname, '.env');
     console.log(error.message);
     process.exit(1);
   } finally {
-    if (browser) await browser.close();
+    if (context) await context.close();
   }
 })();

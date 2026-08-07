@@ -18,11 +18,9 @@ if (!isScan && (!startDateStr || !endDateStr)) {
     process.exit(1);
 }
 
-const COOKIE = process.env.COOKIE;
-if (!COOKIE) {
-    console.error("Error: COOKIE environment variable is not set in .env");
-    process.exit(1);
-}
+const COOKIE = process.env.COOKIE || '';
+// We no longer strictly require the cookie in .env because we use the persistent profile
+
 
 const INVOICE_DIR = path.join(__dirname, 'invoices');
 if (!fs.existsSync(INVOICE_DIR)) {
@@ -83,18 +81,29 @@ function parseDomDate(text) {
     if (!isNaN(d.getTime())) return d;
     return null;
 }
-
 async function run() {
-    const browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({
-        acceptDownloads: true,
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    });
+    const userDataDir = path.join(__dirname, '.auth-profile');
+    let context;
+    try {
+        context = await chromium.launchPersistentContext(userDataDir, { 
+            headless: true, // Läuft unsichtbar im Hintergrund
+            channel: 'chrome',
+            acceptDownloads: true,
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        });
+    } catch(e) {
+        context = await chromium.launchPersistentContext(userDataDir, {
+            headless: true,
+            acceptDownloads: true
+        });
+    }
     
-    const cookies = parseCookies(COOKIE);
-    await context.addCookies(cookies);
+    if (COOKIE) {
+        const cookies = parseCookies(COOKIE);
+        await context.addCookies(cookies);
+    }
     
-    const page = await context.newPage();
+    const page = context.pages().length > 0 ? context.pages()[0] : await context.newPage();
 
     if (isScan) {
         await scanMode(page);
@@ -108,7 +117,7 @@ async function run() {
         await downloadMode(page, startDate, endDate);
     }
 
-    await browser.close();
+    await context.close();
 }
 
 async function extractTrips(page) {
