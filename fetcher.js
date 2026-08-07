@@ -153,7 +153,14 @@ async function scanMode(page) {
     console.log('Navigating to trips page...');
     await page.goto('https://riders.uber.com/trips', { waitUntil: 'domcontentloaded', timeout: 60000 });
     console.log('Waiting for trips to load...');
-    await page.waitForSelector('a[href^="/trips/"]', { timeout: 20000 }).catch(() => {});
+    await page.waitForSelector('a[href^="/trips/"]', { timeout: 15000 }).catch(() => {});
+    
+    if (page.url().includes('auth') || await page.locator('input[name="email"]').count() > 0) {
+        console.error("\n❌ FEHLER: Du bist nicht eingeloggt! Die Session wurde nicht gespeichert.");
+        console.error("Bitte führe 'node setup.js' oder 'node auth.js' erneut aus, um dich einzuloggen!\n");
+        process.exit(1);
+    }
+    
     await page.waitForTimeout(2000); // Extra safety buffer for React
 
     await clickMoreLoop(page);
@@ -189,7 +196,14 @@ async function downloadMode(page, startDate, endDate) {
     console.log('Collecting trips...');
     await page.goto('https://riders.uber.com/trips', { waitUntil: 'domcontentloaded', timeout: 60000 });
     console.log('Waiting for trips to load...');
-    await page.waitForSelector('a[href^="/trips/"]', { timeout: 20000 }).catch(() => {});
+    await page.waitForSelector('a[href^="/trips/"]', { timeout: 15000 }).catch(() => {});
+    
+    if (page.url().includes('auth') || await page.locator('input[name="email"]').count() > 0) {
+        console.error("\n❌ FEHLER: Du bist nicht eingeloggt! Die Session wurde nicht gespeichert.");
+        console.error("Bitte führe 'node setup.js' oder 'node auth.js' erneut aus, um dich einzuloggen!\n");
+        process.exit(1);
+    }
+
     await page.waitForTimeout(2000);
 
     // Stop clicking "More" when the last trip in the list is older than the start date

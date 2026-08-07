@@ -70,7 +70,7 @@ const envPath = path.join(__dirname, '.env');
 
     fs.writeFileSync(envPath, envContent.trim() + '\n');
     console.log("✅ Cookie erfolgreich extrahiert und in .env gespeichert!");
-    process.exit(0);
+    // Kein process.exit(0) hier, damit der finally-Block erreicht wird und Chrome das Profil speichert!
   } catch (error) {
     console.log("\n❌ Fehler beim automatischen Login:");
     console.log(error.message);
