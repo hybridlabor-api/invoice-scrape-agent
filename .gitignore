@@ -6,5 +6,9 @@ invoices/
 debug*.js
 debug*.html
 debug*.json
-Gesamtauflistung.pdf
 *.log
+Gesamtauflistung.pdf
+storage/
+scratch/
+
+
