@@ -2,52 +2,36 @@ const inquirer = require('inquirer').default || require('inquirer');
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const ServiceRegistry = require('./services/registry');
 
 (async () => {
   console.log("\n======================================================");
   console.log("       🧾 BDB Invoice Suite - Initial Setup 🧾         ");
   console.log("======================================================\n");
 
-  const INVOICE_DIRS = [
-    path.join(__dirname, 'invoices'),
-    path.join(__dirname, 'invoices/uber'),
-    path.join(__dirname, 'invoices/aliexpress')
-  ];
-
-  INVOICE_DIRS.forEach(dir => {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-  });
-  console.log("📁 Verzeichnisse 'invoices/uber' und 'invoices/aliexpress' bereit.\n");
+  ServiceRegistry.autoDiscover(path.join(__dirname, 'services'));
+  const services = ServiceRegistry.list();
 
   const answers = await inquirer.prompt([
     {
       type: 'checkbox',
       name: 'servicesToAuth',
       message: 'Bei welchen Diensten möchtest du dich jetzt im Chrome-Browser einloggen?',
-      choices: [
-        { name: '🚖 Uber (riders.uber.com)', value: 'uber', checked: true },
-        { name: '🛍️ AliExpress (aliexpress.com)', value: 'aliexpress', checked: true }
-      ]
+      choices: services.map(s => ({
+        name: `${s.icon} ${s.displayName}`,
+        value: s.id,
+        checked: true
+      }))
     }
   ]);
 
-  if (answers.servicesToAuth.includes('uber')) {
-    console.log("\n🌐 Öffne Chrome für den Login auf riders.uber.com...");
+  for (const serviceId of answers.servicesToAuth) {
+    console.log(`\n🌐 Öffne Chrome für den Login auf ${serviceId}...`);
     try {
-      execSync('node services/uber/auth.js', { stdio: 'inherit' });
+      const service = ServiceRegistry.get(serviceId);
+      await service.authenticate({ headless: false });
     } catch (e) {
-      console.log("⚠️ Uber Login abgebrochen.");
-    }
-  }
-
-  if (answers.servicesToAuth.includes('aliexpress')) {
-    console.log("\n🌐 Öffne Chrome für den Login auf aliexpress.com...");
-    try {
-      execSync('node services/aliexpress/auth.js', { stdio: 'inherit' });
-    } catch (e) {
-      console.log("⚠️ AliExpress Login abgebrochen.");
+      console.log(`⚠️ ${serviceId} Login abgebrochen oder fehlgeschlagen.`);
     }
   }
 
