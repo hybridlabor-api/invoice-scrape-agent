@@ -11,6 +11,8 @@
 
 # 🧾 BDB Invoice & Receipt Suite (Uber & AliExpress)
 
+![Architecture Sketch](assets/invoice_scrape_agent_sketch.jpg)
+
 [![Node.js Version](https://img.shields.io/badge/node-18+-blue.svg)](https://nodejs.org/)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-brightgreen.svg)](#-installation--quick-start)
 [![Services](https://img.shields.io/badge/services-Uber%20%2B%20AliExpress-purple.svg)](#-supported-services)
