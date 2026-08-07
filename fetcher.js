@@ -4,76 +4,38 @@ const fs = require('fs');
 const path = require('path');
 const pdf = require('pdf-parse');
 
-const args = process.argv.slice(2);
-const isScan = args.includes('--scan');
-const startIdx = args.indexOf('--start');
-const endIdx = args.indexOf('--end');
-const startDateStr = startIdx !== -1 ? args[startIdx + 1] : null;
-const endDateStr = endIdx !== -1 ? args[endIdx + 1] : null;
-
-const COOKIE = process.env.COOKIE || '';
-
 const INVOICE_DIR = path.join(__dirname, 'invoices');
 if (!fs.existsSync(INVOICE_DIR)) {
     fs.mkdirSync(INVOICE_DIR, { recursive: true });
 }
 
+const monthMap = {
+    'jan': 0, 'feb': 1, 'mär': 2, 'mar': 2, 'apr': 3,
+    'mai': 4, 'may': 4, 'jun': 5, 'jul': 6, 'aug': 7,
+    'sep': 8, 'okt': 9, 'oct': 9, 'nov': 10, 'dez': 11, 'dec': 11
+};
 
-
-function parseDomDate(text) {
-    const monthMap = {
-        'jan': 0, 'feb': 1, 'mär': 2, 'mar': 2, 'apr': 3,
-        'mai': 4, 'may': 4, 'jun': 5, 'jul': 6, 'aug': 7,
-        'sep': 8, 'okt': 9, 'oct': 9, 'nov': 10, 'dez': 11, 'dec': 11
-    };
-
-    // Format: "31. Juli • 9:56" or "2. Dez. • 10:20"
-    const match = text.match(/(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\.?\s*[•·]/);
-    if (match) {
-        const day = parseInt(match[1], 10);
-        const monthStr = match[2].toLowerCase().substring(0, 3);
-        const month = monthMap[monthStr];
-        if (month !== undefined) {
-            // Uber doesn't show the year, so infer it
-            const now = new Date();
-            let year = now.getFullYear();
-            const candidate = new Date(Date.UTC(year, month, day));
-            // If the date is in the future, it must be from last year
-            if (candidate > now) {
-                year--;
-            }
-            return new Date(Date.UTC(year, month, day));
-        }
-    }
-
-    // Format with year: "31. Juli 2026" or "2. Dez. 2025"
-    const matchWithYear = text.match(/(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\.?\s+(\d{4})/);
-    if (matchWithYear) {
-        const day = parseInt(matchWithYear[1], 10);
-        const monthStr = matchWithYear[2].toLowerCase().substring(0, 3);
-        const month = monthMap[monthStr];
-        const year = parseInt(matchWithYear[3], 10);
-        if (month !== undefined) {
-            return new Date(Date.UTC(year, month, day));
-        }
-    }
-
-    // Fallback: try standard date parsing
-    const yearMatch = text.match(/\b(20[1-2][0-9])\b/);
-    if (yearMatch) {
-        const d = new Date(text);
-        if (!isNaN(d.getTime())) return d;
-    }
-
-    return null;
+function parseSubtitleDate(subtitle) {
+    if (!subtitle) return null;
+    const match = subtitle.match(/(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\.?\s*[•·]/);
+    if (!match) return null;
+    const day = parseInt(match[1], 10);
+    const monthStr = match[2].toLowerCase().substring(0, 3);
+    const month = monthMap[monthStr];
+    if (month === undefined) return null;
+    const now = new Date();
+    let year = now.getFullYear();
+    const candidate = new Date(Date.UTC(year, month, day));
+    if (candidate > now) year--;
+    return new Date(Date.UTC(year, month, day));
 }
 
-async function run(isScan = false, startDate = null, endDate = null) {
+async function createContext() {
     const userDataDir = path.join(__dirname, '.auth-profile');
     let context;
     try {
-        context = await chromium.launchPersistentContext(userDataDir, { 
-            headless: false, // Sichtbar für den Nutzer und Cloudflare Bypass
+        context = await chromium.launchPersistentContext(userDataDir, {
+            headless: false,
             channel: 'chrome',
             acceptDownloads: true
         });
@@ -83,209 +45,133 @@ async function run(isScan = false, startDate = null, endDate = null) {
             acceptDownloads: true
         });
     }
-    
-    const page = context.pages().length > 0 ? context.pages()[0] : await context.newPage();
-    let result = null;
+    return context;
+}
 
-    if (isScan) {
-        result = await scanMode(page);
-    } else {
-        const startD = new Date(startDate);
-        const endD = new Date(endDate);
-        if (isNaN(startD.getTime()) || isNaN(endD.getTime())) {
-            throw new Error(`Invalid date format. Use YYYY-MM-DD. Got: start=${startDate}, end=${endDate}`);
+async function collectActivities(page) {
+    const allActivities = [];
+
+    page.on('response', async (response) => {
+        if (response.url().includes('/graphql') && response.request().method() === 'POST') {
+            try {
+                const body = await response.json();
+                if (body?.data?.activities?.past?.activities) {
+                    allActivities.push(...body.data.activities.past.activities);
+                }
+            } catch(e) {}
         }
-        result = await downloadMode(page, startD, endD);
+    });
+
+    console.log('Navigating to trips page...');
+    await page.goto('https://riders.uber.com/trips', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForTimeout(5000);
+
+    // Login check
+    if (page.url().includes('auth') || await page.locator('input[name="email"]').count() > 0) {
+        console.error("\n❌ FEHLER: Du bist nicht eingeloggt!");
+        console.error("Bitte führe 'node auth.js' erneut aus.\n");
+        process.exit(1);
     }
 
-    await context.close();
-    return result;
-}
-
-async function extractTrips(page) {
-    return await page.evaluate(() => {
-        const tripSet = new Map();
-
-        // Strategy 1: Full absolute URL links (riders.uber.com/trips/UUID)
-        const allLinks = Array.from(document.querySelectorAll('a'));
-        for (const link of allLinks) {
-            const href = link.getAttribute('href') || '';
-            const match = href.match(/\/trips\/([a-f0-9-]{30,})/);
-            if (match) {
-                const tripId = match[1];
-                if (!tripSet.has(tripId)) {
-                    // Walk up the DOM to find the parent trip card and extract date text
-                    let parent = link;
-                    let cardText = '';
-                    for (let i = 0; i < 10; i++) {
-                        parent = parent.parentElement;
-                        if (!parent) break;
-                        const t = parent.innerText || '';
-                        if (t.length > 20 && t.length < 500) {
-                            cardText = t.replace(/\s+/g, ' ').trim();
-                            break;
-                        }
-                    }
-                    tripSet.set(tripId, cardText || link.innerText.replace(/\s+/g, ' ').trim());
-                }
-            }
-        }
-
-        // Strategy 2: Extract trip IDs from help links (jobId=UUID)
-        for (const link of allLinks) {
-            const href = link.getAttribute('href') || '';
-            const jobMatch = href.match(/jobId=([a-f0-9-]{30,})/);
-            if (jobMatch && !tripSet.has(jobMatch[1])) {
-                let parent = link;
-                let cardText = '';
-                for (let i = 0; i < 10; i++) {
-                    parent = parent.parentElement;
-                    if (!parent) break;
-                    const t = parent.innerText || '';
-                    if (t.length > 20 && t.length < 500) {
-                        cardText = t.replace(/\s+/g, ' ').trim();
-                        break;
-                    }
-                }
-                tripSet.set(jobMatch[1], cardText || '');
-            }
-        }
-
-        return Array.from(tripSet.entries()).map(([tripId, text]) => ({ tripId, text }));
-    });
-}
-
-async function clickMoreLoop(page, stopCondition = null) {
+    // Click all "More" buttons to load all trips
     let clickCount = 0;
     while (true) {
-        if (stopCondition) {
-            const trips = await extractTrips(page);
-            if (trips.length > 0 && stopCondition(trips[trips.length - 1])) {
-                console.log('Reached stop condition.');
-                break;
-            }
-        }
-
         try {
-            // Find "More", "Mehr", "Weitere", etc.
             const moreBtn = page.locator('button', { hasText: /more|mehr|weitere|load/i }).first();
-            const count = await moreBtn.count();
-            if (count === 0) {
-                break;
-            }
-
-            const isVisible = await moreBtn.isVisible();
-            const isDisabled = await moreBtn.isDisabled();
-
-            if (!isVisible || isDisabled) {
-                break;
-            }
-
+            if (await moreBtn.count() === 0) break;
+            if (!await moreBtn.isVisible()) break;
             await moreBtn.scrollIntoViewIfNeeded();
             await moreBtn.click({ timeout: 5000 });
             clickCount++;
-            console.log(`Clicked 'More' button ${clickCount} time(s)`);
-            
-            // Wait for network activity or DOM changes
-            await page.waitForTimeout(2000);
-        } catch (e) {
-            // Probably no more button or timeout
-            break;
+            process.stdout.write(`\rLade weitere Fahrten... (${clickCount}x)`);
+            await page.waitForTimeout(2500);
+        } catch(e) { break; }
+    }
+    if (clickCount > 0) console.log();
+
+    // Deduplicate by UUID
+    const uniqueMap = new Map();
+    for (const act of allActivities) {
+        if (act.uuid && !uniqueMap.has(act.uuid)) {
+            uniqueMap.set(act.uuid, act);
         }
     }
+    return Array.from(uniqueMap.values());
 }
 
-async function scanMode(page) {
+async function run(isScan = false, startDate = null, endDate = null) {
+    const context = await createContext();
+    const page = context.pages().length > 0 ? context.pages()[0] : await context.newPage();
+
+    try {
+        const activities = await collectActivities(page);
+        console.log(`\n✅ ${activities.length} Fahrten gefunden.\n`);
+
+        if (isScan) {
+            return await scanMode(activities);
+        } else {
+            const startD = new Date(startDate);
+            const endD = new Date(endDate);
+            if (isNaN(startD.getTime()) || isNaN(endD.getTime())) {
+                throw new Error(`Ungültiges Datumsformat. Nutze YYYY-MM-DD. Erhalten: start=${startDate}, end=${endDate}`);
+            }
+            return await downloadMode(page, activities, startD, endD);
+        }
+    } finally {
+        await context.close();
+    }
+}
+
+function scanMode(activities) {
     console.log('--- SCAN MODE ---');
-    console.log('Navigating to trips page...');
-    await page.goto('https://riders.uber.com/trips', { waitUntil: 'domcontentloaded', timeout: 60000 });
-    console.log('Waiting for trips to load...');
-    await page.waitForSelector('a[href*="/trips/"]', { timeout: 15000 }).catch(() => {});
-    
-    if (page.url().includes('auth') || await page.locator('input[name="email"]').count() > 0) {
-        console.error("\n❌ FEHLER: Du bist nicht eingeloggt! Die Session wurde nicht gespeichert.");
-        console.error("Bitte führe 'node setup.js' oder 'node auth.js' erneut aus, um dich einzuloggen!\n");
-        process.exit(1);
-    }
-    
-    await page.waitForTimeout(2000); // Extra safety buffer for React
 
-    await clickMoreLoop(page);
+    const parsed = activities
+        .map(a => ({ act: a, date: parseSubtitleDate(a.subtitle) }))
+        .filter(a => a.date !== null);
 
-    const trips = await extractTrips(page);
-    console.log(`\nFound ${trips.length} total trips.`);
+    parsed.sort((a, b) => a.date - b.date);
 
-    if (trips.length === 0) {
-        console.log("No trips found.");
-        return;
+    if (parsed.length > 0) {
+        const minDate = parsed[0].date.toISOString().split('T')[0];
+        const maxDate = parsed[parsed.length - 1].date.toISOString().split('T')[0];
+        console.log(`Frühestes Datum: ${minDate}`);
+        console.log(`Letztes Datum:   ${maxDate}`);
+        console.log(`Fahrten gesamt:  ${activities.length}`);
+        return { success: true, earliest: minDate, latest: maxDate, totalTrips: activities.length };
     }
 
-    const parsedDates = trips.map(t => ({ trip: t, date: parseDomDate(t.text) })).filter(t => t.date !== null);
-    
-    if (parsedDates.length > 0) {
-        parsedDates.sort((a, b) => a.date - b.date);
-        const minDate = parsedDates[0].date.toISOString().split('T')[0];
-        const maxDate = parsedDates[parsedDates.length - 1].date.toISOString().split('T')[0];
-        console.log(`Earliest Date available: ${minDate} (Trip: ${parsedDates[0].trip.tripId})`);
-        console.log(`Latest Date available: ${maxDate} (Trip: ${parsedDates[parsedDates.length - 1].trip.tripId})`);
-        return { success: true, earliest: minDate, latest: maxDate, totalTrips: trips.length };
-    } else {
-        console.log(`Earliest trip entry text: ${trips[trips.length - 1].text}`);
-        console.log(`Latest trip entry text: ${trips[0].text}`);
-        return { success: true, totalTrips: trips.length };
-    }
+    console.log(`Fahrten gesamt: ${activities.length} (Daten konnten nicht geparst werden)`);
+    return { success: true, totalTrips: activities.length };
 }
 
-async function downloadMode(page, startDate, endDate) {
+async function downloadMode(page, activities, startDate, endDate) {
     const sDate = startDate.toISOString().split('T')[0];
     const eDate = endDate.toISOString().split('T')[0];
-    console.log(`--- DOWNLOAD MODE (${sDate} to ${eDate}) ---`);
-    console.log('Collecting trips...');
-    await page.goto('https://riders.uber.com/trips', { waitUntil: 'domcontentloaded', timeout: 60000 });
-    console.log('Waiting for trips to load...');
-    await page.waitForSelector('a[href*="/trips/"]', { timeout: 15000 }).catch(() => {});
-    
-    if (page.url().includes('auth') || await page.locator('input[name="email"]').count() > 0) {
-        console.error("\n❌ FEHLER: Du bist nicht eingeloggt! Die Session wurde nicht gespeichert.");
-        console.error("Bitte führe 'node setup.js' oder 'node auth.js' erneut aus, um dich einzuloggen!\n");
-        process.exit(1);
-    }
+    console.log(`--- DOWNLOAD MODE (${sDate} bis ${eDate}) ---`);
 
-    await page.waitForTimeout(2000);
-
-    // Stop clicking "More" when the last trip in the list is older than the start date
-    await clickMoreLoop(page, (lastTrip) => {
-        const d = parseDomDate(lastTrip.text);
-        if (d && d < startDate) {
-            return true;
-        }
-        return false;
-    });
-
-    const trips = await extractTrips(page);
-    const matchingTrips = trips.filter(t => {
-        const d = parseDomDate(t.text);
-        if (!d) return true; // If we can't parse it, check it anyway just to be safe
+    const matching = activities.filter(a => {
+        const d = parseSubtitleDate(a.subtitle);
+        if (!d) return false;
         return d >= startDate && d <= endDate;
     });
 
-    console.log(`Found ${matchingTrips.length} trips in the given date range.`);
+    console.log(`${matching.length} Fahrten im Zeitraum gefunden.\n`);
 
-    for (const trip of matchingTrips) {
-        const url = `https://riders.uber.com/trips/${trip.tripId}`;
-        console.log(`Processing trip: ${url}`);
-        
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-        await page.waitForTimeout(2000); // Wait for React to render the invoice page
-        
+    let downloaded = 0;
+    for (const act of matching) {
+        const tripUrl = act.cardURL || `https://riders.uber.com/trips/${act.uuid}`;
+        const dateStr = act.subtitle || '';
+        const price = act.description || '';
+        console.log(`[${downloaded + 1}/${matching.length}] ${dateStr} | ${act.title} | ${price}`);
+
+        await page.goto(tripUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.waitForTimeout(3000);
+
         try {
-            // Find download button
-            // Typical texts: "Rechnung herunterladen", "Download Invoice", "Herunterladen"
             const btnLocator = page.locator('text=/Rechnung herunterladen|Download Invoice/i').first();
-            
             const btnCount = await btnLocator.count();
             if (btnCount === 0) {
-                console.log(`  -> No invoice download button found.`);
+                console.log(`  → Keine Rechnung verfügbar (storniert/kostenlos?)`);
                 continue;
             }
 
@@ -295,87 +181,59 @@ async function downloadMode(page, startDate, endDate) {
             ]);
 
             const tempPath = await download.path();
-            console.log(`  -> Downloaded temporary PDF: ${tempPath}`);
-
-            // Parse PDF
             const dataBuffer = fs.readFileSync(tempPath);
             const pdfData = await pdf(dataBuffer);
             const text = pdfData.text;
 
-            let invoiceNum = 'UNKNOWN-INV';
+            let invoiceNum = 'UNKNOWN';
             const invMatch = text.match(/(?:Rechnungsnummer|Invoice Number|Rechnung)[\s:]*([A-Z0-9-]{6,})/i);
-            if (invMatch) {
-                invoiceNum = invMatch[1].trim();
+            if (invMatch) invoiceNum = invMatch[1].trim();
+
+            let exactDate = parseSubtitleDate(dateStr);
+            let dateForFile = exactDate ? exactDate.toISOString().split('T')[0] : 'UNKNOWN-DATE';
+
+            // Try to get more precise date from PDF content
+            const dtMatch = text.match(/([0-9]{1,2})\.([0-9]{1,2})\.([0-9]{4})/);
+            if (dtMatch) {
+                dateForFile = `${dtMatch[3]}-${dtMatch[2].padStart(2,'0')}-${dtMatch[1].padStart(2,'0')}`;
             }
 
-            let exactDate = 'YYYY-MM-DD';
-            const dtMatch3 = text.match(/([0-9]{4})-([0-9]{2})-([0-9]{2})/); // YYYY-MM-DD
-            const dtMatch1 = text.match(/([0-9]{1,2})\.\s*([0-9]{1,2})\.\s*([0-9]{4})/); // DD.MM.YYYY
-            const dtMatch2 = text.match(/([0-9]{1,2})\.\s+([a-zA-ZäöüÄÖÜ]+)\s+([0-9]{4})/); // DD. Month YYYY
-
-            if (dtMatch3) {
-                exactDate = `${dtMatch3[1]}-${dtMatch3[2]}-${dtMatch3[3]}`;
-            } else if (dtMatch1) {
-                const d = dtMatch1[1].padStart(2, '0');
-                const m = dtMatch1[2].padStart(2, '0');
-                const y = dtMatch1[3];
-                exactDate = `${y}-${m}-${d}`;
-            } else if (dtMatch2) {
-                const d = dtMatch2[1].padStart(2, '0');
-                const monthStr = dtMatch2[2].toLowerCase();
-                const y = dtMatch2[3];
-                const months = {
-                    'januar': '01', 'februar': '02', 'märz': '03', 'april': '04', 'mai': '05', 'juni': '06',
-                    'juli': '07', 'august': '08', 'september': '09', 'oktober': '10', 'november': '11', 'dezember': '12',
-                    'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06',
-                    'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12',
-                };
-                const m = months[monthStr] || '00';
-                exactDate = `${y}-${m}-${d}`;
-            } else {
-                // Fallback to DOM date if we parsed it
-                const domD = parseDomDate(trip.text);
-                if (domD) {
-                    exactDate = domD.toISOString().split('T')[0];
-                }
-            }
-
-            const newFilename = `Uber-Bv-${exactDate}-${invoiceNum}.pdf`;
+            const newFilename = `Uber-Bv-${dateForFile}-${invoiceNum}.pdf`;
             const finalPath = path.join(INVOICE_DIR, newFilename);
             fs.copyFileSync(tempPath, finalPath);
-            fs.unlinkSync(tempPath); // Clean up temp file
-            
-            console.log(`  -> Saved invoice: ${newFilename}`);
+            try { fs.unlinkSync(tempPath); } catch(e) {}
+
+            console.log(`  ✅ Gespeichert: ${newFilename}`);
+            downloaded++;
         } catch (e) {
-            console.log(`  -> Failed to download or parse invoice: ${e.message}`);
+            console.log(`  ❌ Fehler: ${e.message}`);
         }
     }
-    console.log('Done downloading.');
-    return { success: true, count: matchingTrips.length };
+
+    console.log(`\n✅ ${downloaded} Rechnungen heruntergeladen nach: ${INVOICE_DIR}`);
+    return { success: true, count: downloaded };
 }
 
-// Wenn die Datei per CLI aufgerufen wird (nicht als Module importiert)
 if (require.main === module) {
     const args = process.argv.slice(2);
-    const isScanCLI = args.includes('--scan');
+    const isScan = args.includes('--scan');
     const startIdx = args.indexOf('--start');
     const endIdx = args.indexOf('--end');
     const startDateCLI = startIdx !== -1 ? args[startIdx + 1] : null;
     const endDateCLI = endIdx !== -1 ? args[endIdx + 1] : null;
 
-    if (!isScanCLI && (!startDateCLI || !endDateCLI)) {
+    if (!isScan && (!startDateCLI || !endDateCLI)) {
         console.error("Usage:");
         console.error("  node fetcher.js --scan");
         console.error("  node fetcher.js --start YYYY-MM-DD --end YYYY-MM-DD");
         process.exit(1);
     }
-    
-    run(isScanCLI, startDateCLI, endDateCLI).catch(err => {
+
+    run(isScan, startDateCLI, endDateCLI).catch(err => {
         console.error('Fatal Error:', err);
         process.exit(1);
     });
 } else {
-    // Für KI-Agenten: API als Modul exportieren
     module.exports = {
         scan: () => run(true, null, null),
         download: (start, end) => run(false, start, end)
