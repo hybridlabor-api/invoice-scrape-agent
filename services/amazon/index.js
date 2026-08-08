@@ -21,12 +21,41 @@ class AmazonService extends BaseService {
   }
 
   /**
+   * Helper to detect specific Amazon sub-service (Audible, Prime Video, Luna, Kindle, etc.)
+   */
+  detectSubService(text = '', seller = '', orderId = '') {
+    const combined = `${text} ${seller} ${orderId}`.toLowerCase();
+
+    if (/audible/i.test(combined) || /audde/i.test(combined) || /hörbuch/i.test(combined) || /audiobook/i.test(combined)) {
+      return { subService: 'Audible', category: 'Verbrauchsmaterial', icon: '🎧' };
+    }
+    if (/prime\s*video/i.test(combined) || /amazon\s*instant\s*video/i.test(combined) || /amazon\s*digital\s*germany/i.test(combined) || /video\s*download/i.test(combined) || /movie/i.test(combined) || /film/i.test(combined)) {
+      return { subService: 'Prime Video', category: 'Verbrauchsmaterial', icon: '🎬' };
+    }
+    if (/luna/i.test(combined) || /cloud\s*gaming/i.test(combined)) {
+      return { subService: 'Amazon Luna', category: 'Verbrauchsmaterial', icon: '🎮' };
+    }
+    if (/kindle/i.test(combined) || /ebook/i.test(combined) || /e-book/i.test(combined)) {
+      return { subService: 'Amazon Kindle', category: 'Verbrauchsmaterial', icon: '📚' };
+    }
+    if (/amazon\s*music/i.test(combined) || /digital\s*music/i.test(combined)) {
+      return { subService: 'Amazon Music', category: 'Verbrauchsmaterial', icon: '🎵' };
+    }
+    if (/appstore/i.test(combined) || /amazon\s*media\s*eu/i.test(combined) || combined.startsWith('d01-')) {
+      return { subService: 'Amazon Digital', category: 'Verbrauchsmaterial', icon: '📱' };
+    }
+
+    return { subService: 'Amazon.de', category: 'Anschaffung', icon: '📦' };
+  }
+
+  /**
    * Helper to extract invoice number and tax/invoice dates from PDF buffer or text
    */
   async extractInvoiceDetails(pdfInput, orderId = '') {
     let invoiceNumber = null;
     let invoiceDate = null;
     let taxDate = null;
+    let subServiceInfo = null;
 
     try {
       let text = '';
@@ -36,6 +65,9 @@ class AmazonService extends BaseService {
         const data = await pdf(pdfInput);
         text = data.text || '';
       }
+
+      // Detect SubService from text
+      subServiceInfo = this.detectSubService(text, '', orderId);
 
       // 1. Amazon EU S.a.r.l. / Marketplace standard label patterns
       const matchInv = text.match(/(?:Rechnungsnummer|Quittungsnummer|Gutschriftsnummer|Rechnungs-Nr\.?|Rechnung\s*Nr\.?|Invoice\s*(?:Number|ID|#)?|Beleg-Nr\.?)[\s:]*([A-Za-z0-9\/-]{4,})/i);
@@ -59,7 +91,7 @@ class AmazonService extends BaseService {
         }
       }
 
-      // 4. Look for generic prefix codes
+      // 4. Look for generic prefix codes (including Audible AUDDE and Amazon Digital DS-AEU)
       if (!invoiceNumber) {
         const genericCodeMatch = text.match(/\b((?:INV|DOC|AEU|AUDDE|DS-AEU|REC|RG|RE)-[A-Za-z0-9-]+)\b/i);
         if (genericCodeMatch) {
@@ -87,7 +119,14 @@ class AmazonService extends BaseService {
     // Sanitize for filesystem
     invoiceNumber = invoiceNumber.replace(/[\/\\:*?"<>|]/g, '_');
 
-    return { invoiceNumber, invoiceDate, taxDate };
+    return { 
+      invoiceNumber, 
+      invoiceDate, 
+      taxDate,
+      subService: subServiceInfo?.subService || 'Amazon.de',
+      category: subServiceInfo?.category || 'Anschaffung',
+      icon: subServiceInfo?.icon || '📦'
+    };
   }
 
   /**
@@ -119,6 +158,8 @@ class AmazonService extends BaseService {
           invoiceNumber: details.invoiceNumber,
           taxDate: details.taxDate,
           invoiceDate: details.invoiceDate,
+          subService: details.subService || order.subService || 'Amazon.de',
+          category: details.category || order.category || 'Anschaffung',
           brutto: order.brutto,
           netto: order.netto,
           ust: order.ust,
@@ -130,16 +171,30 @@ class AmazonService extends BaseService {
       // 3. Group pages: Check if new invoice starts on each page
       const invoiceGroups = [];
       let currentGroup = [];
+      let lastSeenInvNum = '';
+      const hasPageNumbering = pageTexts.some(t => /(?:Seite\s*\d+\s*von|Page\s*\d+\s*of)/i.test(t));
 
       pageTexts.forEach((text, pageIndex) => {
-        const isPageOne = /(?:Seite\s*1\s*von|Page\s*1\s*of)/i.test(text);
-        if (isPageOne && currentGroup.length > 0) {
+        let isNewInvoice = false;
+        if (hasPageNumbering) {
+          isNewInvoice = /(?:Seite\s*1\s*von|Page\s*1\s*of)/i.test(text);
+        } else {
+          const invMatch = text.match(/(?:Rechnungsnummer|Quittungsnummer|Gutschriftsnummer)\s*[:\s]*([A-Za-z0-9\/-]{4,})/i);
+          const currentInvNum = invMatch ? invMatch[1].trim() : '';
+          isNewInvoice = Boolean(currentInvNum && lastSeenInvNum && currentInvNum !== lastSeenInvNum);
+          if (currentInvNum) {
+            lastSeenInvNum = currentInvNum;
+          }
+        }
+
+        if (isNewInvoice && currentGroup.length > 0) {
           invoiceGroups.push(currentGroup);
           currentGroup = [pageIndex];
         } else {
           currentGroup.push(pageIndex);
         }
       });
+
       if (currentGroup.length > 0) {
         invoiceGroups.push(currentGroup);
       }
@@ -152,6 +207,8 @@ class AmazonService extends BaseService {
           invoiceNumber: details.invoiceNumber,
           taxDate: details.taxDate,
           invoiceDate: details.invoiceDate,
+          subService: details.subService || order.subService || 'Amazon.de',
+          category: details.category || order.category || 'Anschaffung',
           brutto: order.brutto,
           netto: order.netto,
           ust: order.ust,
@@ -198,12 +255,15 @@ class AmazonService extends BaseService {
 
         let subDate = dateMatch ? this.normalizeDate(dateMatch[1]) : (details.invoiceDate || order.date);
         let subSeller = sellerMatch ? sellerMatch[1].trim() : (order.seller || 'Amazon EU S.a.r.l.');
+        let detectedService = this.detectSubService(subText, subSeller, order.orderId);
 
         results.push({
           pdfBuffer: subBuffer,
           invoiceNumber: details.invoiceNumber,
           taxDate: details.taxDate || subDate,
           invoiceDate: details.invoiceDate || subDate,
+          subService: detectedService.subService || details.subService || order.subService || 'Amazon.de',
+          category: detectedService.category || details.category || order.category || 'Anschaffung',
           date: subDate,
           brutto: subBrutto,
           netto: subNetto,
@@ -222,6 +282,8 @@ class AmazonService extends BaseService {
         invoiceNumber: details.invoiceNumber,
         taxDate: details.taxDate,
         invoiceDate: details.invoiceDate,
+        subService: details.subService || order.subService || 'Amazon.de',
+        category: details.category || order.category || 'Anschaffung',
         brutto: order.brutto,
         netto: order.netto,
         ust: order.ust,
@@ -234,15 +296,18 @@ class AmazonService extends BaseService {
   /**
    * Helper to parse order card text extracted from DOM
    */
-  parseOrderCardData({ orderId, dateText, totalText, sellerText = 'Amazon EU S.a.r.l.' }) {
+  parseOrderCardData({ orderId, dateText, totalText, titleText = '', sellerText = 'Amazon EU S.a.r.l.', isDigital = false }) {
     const date = this.normalizeDate(dateText);
     const brutto = this.parseCurrency(totalText);
     const taxBreakdown = this.calculateTaxBreakdown({ brutto, taxRate: '19%' });
+    const serviceInfo = this.detectSubService(titleText, sellerText, orderId);
 
     return {
       id: `AMZ-${orderId}`,
       service: this.id,
       serviceDisplayName: this.displayName,
+      subService: serviceInfo.subService,
+      category: serviceInfo.category,
       orderId,
       invoiceNumber: `INV-${orderId}`,
       date,
@@ -252,6 +317,7 @@ class AmazonService extends BaseService {
       taxRate: taxBreakdown.taxRate,
       currency: 'EUR',
       seller: sellerText,
+      isDigital: isDigital || orderId.startsWith('D01-') || serviceInfo.subService !== 'Amazon.de',
       status: 'downloaded'
     };
   }
@@ -300,52 +366,50 @@ class AmazonService extends BaseService {
   }
 
   /**
-   * Step 2: Scan orders list
+   * Helper to scan a single order list page type (Physical vs Digital Orders)
    */
-  async scan({ year = new Date().getFullYear().toString(), maxPages = 20 } = {}) {
-    console.log(`\n🔍 [Amazon] Scanning orders for year ${year}...`);
-    this.abortRequested = false;
-    const context = await this.launchBrowser({ headless: false });
-    const page = context.pages()[0] || await context.newPage();
-    const orders = [];
-
+  async scanOrderType(page, targetUrl, { isDigital = false, maxPages = 20 } = {}) {
+    const foundOrders = [];
     try {
-      const targetUrl = `${this.ordersUrl}?timeFilter=year-${year}`;
       await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
-
       let currentPage = 1;
+
       while (currentPage <= maxPages) {
-        if (this.abortRequested) {
-          console.log('🛑 Amazon Scan abgebrochen.');
-          break;
-        }
-        console.log(`📄 Scanning page ${currentPage}...`);
+        if (this.abortRequested) break;
         await page.waitForTimeout(1500);
 
-        const pageOrders = await page.evaluate(() => {
-          const cards = document.querySelectorAll('.order-card, .yo-card-manage, [data-component-type="orderCard"]');
+        const pageOrders = await page.evaluate((isDigitalOrder) => {
+          const cardSelectors = '.order-card, .yo-card-manage, [data-component-type="orderCard"], .order, .digital-order';
+          const cards = document.querySelectorAll(cardSelectors);
           const results = [];
 
           cards.forEach(card => {
             const text = card.innerText || '';
-            const orderIdMatch = text.match(/(?:BESTELLNR\.|Order #)\s*([A-Z0-9-]+)/i) || text.match(/([0-9]{3}-[0-9]{7}-[0-9]{7})/);
-            const dateMatch = text.match(/(?:BESTELLUNG AUFGEGEBEN|ORDER PLACED)\n([^\n]+)/i);
-            const totalMatch = text.match(/(?:SUMME|TOTAL)\n([0-9,.]+)\s*€/i) || text.match(/([0-9,.]+)\s*€/i);
+            const orderIdMatch = text.match(/(?:BESTELLNR\.|Order #|BESTELLNUMMER)\s*[:\s]*([A-Z0-9-]+)/i) || 
+                                 text.match(/([0-9]{3}-[0-9]{7}-[0-9]{7})/) ||
+                                 text.match(/(D01-[0-9]{7}-[0-9]{7})/);
+
+            const dateMatch = text.match(/(?:BESTELLUNG AUFGEGEBEN|ORDER PLACED|BESTELLDATUM|KAUFDATUM)\n?([^\n]+)/i);
+            const totalMatch = text.match(/(?:SUMME|TOTAL|GESAMT)\n?([0-9,.]+)\s*€/i) || text.match(/([0-9,.]+)\s*€/i);
             
+            // Extract item title if available (for Audible, Prime Video, Luna classification)
+            const titleEl = card.querySelector('.yohtmlc-item-title, .yohtmlc-product-title, a.a-link-normal[href*="/dp/"], a.a-link-normal[href*="/gp/video/"]');
+            const titleText = titleEl ? titleEl.innerText.trim() : '';
+
             const orderId = orderIdMatch ? orderIdMatch[1].trim() : '';
             const dateText = dateMatch ? dateMatch[1].trim() : '';
             const totalText = totalMatch ? totalMatch[1].trim() : '';
             
             if (orderId) {
-              results.push({ orderId, dateText, totalText });
+              results.push({ orderId, dateText, totalText, titleText, isDigital: isDigitalOrder });
             }
           });
           return results;
-        });
+        }, isDigital);
 
         for (const raw of pageOrders) {
           const record = this.parseOrderCardData(raw);
-          orders.push(record);
+          foundOrders.push(record);
         }
 
         // Check next page pagination
@@ -360,7 +424,46 @@ class AmazonService extends BaseService {
           break;
         }
       }
+    } catch (err) {
+      console.warn(`⚠️ [Amazon] Warning during scan of ${targetUrl}:`, err.message);
+    }
+    return foundOrders;
+  }
 
+  /**
+   * Step 2: Scan orders list (Physical Orders + Digital Orders: Audible, Prime Video, Luna, Kindle)
+   */
+  async scan({ year = new Date().getFullYear().toString(), maxPages = 20 } = {}) {
+    console.log(`\n🔍 [Amazon] Scanning orders for year ${year} (Retail & Digital Services)...`);
+    this.abortRequested = false;
+    const context = await this.launchBrowser({ headless: false });
+    const page = context.pages()[0] || await context.newPage();
+    const ordersMap = new Map();
+
+    try {
+      // 1. Scan Physical / Standard Orders
+      const physicalUrl = `${this.ordersUrl}?timeFilter=year-${year}`;
+      console.log(`📦 [Amazon] Scanning physical orders (year ${year})...`);
+      const physicalOrders = await this.scanOrderType(page, physicalUrl, { isDigital: false, maxPages });
+      for (const ord of physicalOrders) {
+        if (ord.orderId && !ordersMap.has(ord.orderId)) {
+          ordersMap.set(ord.orderId, ord);
+        }
+      }
+
+      // 2. Scan Digital Orders (Audible, Prime Video, Luna, Kindle, Software)
+      if (!this.abortRequested) {
+        const digitalUrl = `${this.ordersUrl}?timeFilter=year-${year}&filterType=digital`;
+        console.log(`🎧 [Amazon] Scanning digital orders (Audible, Prime Video, Luna, etc.)...`);
+        const digitalOrders = await this.scanOrderType(page, digitalUrl, { isDigital: true, maxPages });
+        for (const ord of digitalOrders) {
+          if (ord.orderId && !ordersMap.has(ord.orderId)) {
+            ordersMap.set(ord.orderId, ord);
+          }
+        }
+      }
+
+      const orders = Array.from(ordersMap.values());
       const oldest = orders.length > 0 ? orders[orders.length - 1].date : '-';
       const newest = orders.length > 0 ? orders[0].date : '-';
       const totalAmount = orders.reduce((sum, o) => sum + (parseFloat(o.brutto) || 0), 0);
@@ -368,7 +471,7 @@ class AmazonService extends BaseService {
       console.log("\n    ======================================================");
       console.log("              📊 KONTO-ANALYSE ERGEBNIS 📊              ");
       console.log("    ======================================================");
-      console.log(`    📦 Bestellungen gesamt:    ${orders.length}`);
+      console.log(`    📦 Bestellungen gesamt:    ${orders.length} (Retail + Digital)`);
       console.log(`    📅 Älteste Bestellung:     ${oldest}`);
       console.log(`    📅 Neueste Bestellung:     ${newest}`);
       console.log(`    💰 Gesamtausgaben erfasst: ${totalAmount.toFixed(2)} €\n`);
@@ -446,7 +549,7 @@ class AmazonService extends BaseService {
   }
 
   /**
-   * Step 3: Fetch & Normalize PDF Invoices
+   * Step 3: Fetch & Normalize PDF Invoices (Multi-Link Popovers, Digital Summaries & Composite Splitter)
    */
   async fetch({ all = false, year = null, startDate = null, endDate = null, limit = null, headless = false } = {}) {
     this.abortRequested = false;
@@ -479,7 +582,7 @@ class AmazonService extends BaseService {
 
     orders.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
-    console.log(`\n⬇️ [Amazon] Processing ${orders.length} invoices...`);
+    console.log(`\n⬇️ [Amazon] Processing ${orders.length} orders...`);
     const context = await this.launchBrowser({ headless });
     const page = context.pages()[0] || await context.newPage();
     let downloaded = 0;
@@ -503,7 +606,9 @@ class AmazonService extends BaseService {
         const subfolder = path.join(this.invoicesDir, yearMonth);
         if (!fs.existsSync(subfolder)) fs.mkdirSync(subfolder, { recursive: true });
 
-        console.log(`📥 Downloading: ${order.orderId} (${order.date} | ${order.brutto}€)`);
+        const srvIcon = order.icon || '📦';
+        const srvName = order.subService || 'Amazon.de';
+        console.log(`📥 ${srvIcon} Downloading [${srvName}]: ${order.orderId} (${order.date} | ${order.brutto}€)`);
 
         try {
           const pdfBuffers = [];
@@ -511,27 +616,87 @@ class AmazonService extends BaseService {
           const popoverRes = await page.request.get(popoverUrl);
           const popoverHtml = await popoverRes.text();
           
-          const nativePdfMatches = Array.from(popoverHtml.matchAll(/\/documents\/download\/[a-f0-9-]+\/invoice\.pdf/g));
+          // 1. Extract ALL invoice / document links from popover HTML (Rechnung 1, Rechnung 2, Gutschrift, etc.)
+          const invoiceLinks = [];
           
-          if (nativePdfMatches.length > 0) {
-            console.log(`   🔗 Found ${nativePdfMatches.length} native PDF invoice link(s)! Downloading...`);
-            for (const match of nativePdfMatches) {
-              const downloadUrl = `${this.baseUrl}${match[0]}`;
-              const pdfRes = await page.request.get(downloadUrl);
-              pdfBuffers.push(await pdfRes.body());
+          // Match all anchor tags with href and text
+          const anchorRegex = /<a\s+(?:[^>]*?\s+)?href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+          let match;
+          while ((match = anchorRegex.exec(popoverHtml)) !== null) {
+            const href = match[1].replace(/&amp;/g, '&');
+            const linkText = match[2].replace(/<[^>]*>/g, '').trim();
+
+            const isInvoiceDoc = href.includes('/documents/download/') || 
+                                 href.includes('/gp/shared-cs/ajax/invoice/') ||
+                                 href.includes('/gp/digital/your-account/order-summary.html') ||
+                                 href.includes('/gp/css/summary/print.html') ||
+                                 /(?:Rechnung|Gutschrift|Invoice|Credit Note|Beleg|Quittung|Audible|Prime|Übersicht|Summary)/i.test(linkText);
+
+            if (isInvoiceDoc) {
+              const fullUrl = href.startsWith('http') ? href : `${this.baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+              if (!invoiceLinks.some(l => l.url === fullUrl)) {
+                invoiceLinks.push({ url: fullUrl, text: linkText, isNativePdf: href.includes('/documents/download/') });
+              }
+            }
+          }
+
+          // Also regex match any native PDF download patterns in case they were inside data attributes
+          const rawDocMatches = Array.from(popoverHtml.matchAll(/\/documents\/download\/[a-f0-9-]+\/[^"'\s<>]+/gi));
+          for (const rawDoc of rawDocMatches) {
+            const fullUrl = `${this.baseUrl}${rawDoc[0]}`;
+            if (!invoiceLinks.some(l => l.url === fullUrl)) {
+              invoiceLinks.push({ url: fullUrl, text: 'Native Invoice PDF', isNativePdf: true });
+            }
+          }
+
+          if (invoiceLinks.length > 0) {
+            console.log(`   🔗 Found ${invoiceLinks.length} invoice link(s) in popover:`);
+            for (let i = 0; i < invoiceLinks.length; i++) {
+              const link = invoiceLinks[i];
+              console.log(`      [${i + 1}/${invoiceLinks.length}] ${link.text || 'Rechnung'} -> ${link.url}`);
+
+              try {
+                if (link.isNativePdf || link.url.endsWith('.pdf')) {
+                  const pdfRes = await page.request.get(link.url);
+                  const buf = await pdfRes.body();
+                  if (buf && buf.length > 100) {
+                    pdfBuffers.push(buf);
+                  }
+                } else {
+                  // Render HTML Invoice/Summary via Playwright
+                  await page.goto(link.url, { waitUntil: 'networkidle', timeout: 30000 });
+                  const htmlBuf = await page.pdf({
+                    format: 'A4',
+                    printBackground: true,
+                    margin: { top: '15mm', bottom: '15mm', left: '15mm', right: '15mm' }
+                  });
+                  if (htmlBuf && htmlBuf.length > 100) {
+                    pdfBuffers.push(htmlBuf);
+                  }
+                }
+              } catch (linkErr) {
+                console.warn(`   ⚠️ Warning downloading invoice link ${link.url}:`, linkErr.message);
+              }
             }
           } else {
-            console.log(`   🖨️ No native PDF found. Rendering HTML fallback summary...`);
-            const printUrl = `${this.baseUrl}/gp/css/summary/print.html?orderID=${order.orderId}`;
-            await page.goto(printUrl, { waitUntil: 'networkidle', timeout: 30000 });
+            // Fallback for Digital or Physical Orders when popover has no direct links
+            console.log(`   🖨️ No popover links found. Rendering HTML summary fallback...`);
+            const fallbackUrl = order.isDigital 
+              ? `${this.baseUrl}/gp/digital/your-account/order-summary.html?orderID=${order.orderId}`
+              : `${this.baseUrl}/gp/css/summary/print.html?orderID=${order.orderId}`;
+
+            await page.goto(fallbackUrl, { waitUntil: 'networkidle', timeout: 30000 });
             const fallbackBuf = await page.pdf({
               format: 'A4',
               printBackground: true,
               margin: { top: '15mm', bottom: '15mm', left: '15mm', right: '15mm' }
             });
-            pdfBuffers.push(fallbackBuf);
+            if (fallbackBuf && fallbackBuf.length > 100) {
+              pdfBuffers.push(fallbackBuf);
+            }
           }
 
+          // Process & Split each PDF Buffer
           for (const rawPdfBuffer of pdfBuffers) {
             const splitInvoices = await this.splitAndExtractInvoices(rawPdfBuffer, order);
             for (const subInv of splitInvoices) {
@@ -547,10 +712,15 @@ class AmazonService extends BaseService {
 
               fs.writeFileSync(pdfFilePath, subInv.pdfBuffer);
 
+              const subSrv = subInv.subService || order.subService || 'Amazon.de';
+              const subCat = subInv.category || order.category || 'Anschaffung';
+
               const record = {
                 ...order,
                 id: `AMZ-${order.orderId}-${safeInvNum}`,
                 orderId: order.orderId,
+                subService: subSrv,
+                category: subCat,
                 invoiceNumber: subInv.invoiceNumber || `INV-${order.orderId}`,
                 date: invDate,
                 steuerdatum: subInv.taxDate || invDate,
@@ -564,7 +734,7 @@ class AmazonService extends BaseService {
               };
 
               this.saveLedgerRecord(record);
-              console.log(`   📄 Gespeichert als: ${pdfFileName} (${record.brutto}€)`);
+              console.log(`   📄 Gespeichert als: [${subSrv}] ${pdfFileName} (${record.brutto}€)`);
               downloaded++;
             }
           }
@@ -598,30 +768,25 @@ class AmazonService extends BaseService {
     const totalNetto = sorted.reduce((sum, item) => sum + (item.netto || 0), 0);
     const totalUst = sorted.reduce((sum, item) => sum + (item.ust || 0), 0);
 
-    console.log(`📊 Analysiere ${sorted.length} Amazon-Belege...`);
-
-    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 30 });
+    const doc = new PDFDocument({ size: 'A4', margin: 30, layout: 'landscape' });
     const stream = fs.createWriteStream(outputFile);
     doc.pipe(stream);
 
     // Title & Header
-    doc.fontSize(18).font('Helvetica-Bold').text('Amazon Rechnungsübersicht', { align: 'center' });
-    doc.moveDown(0.3);
-    doc.fontSize(10).font('Helvetica').text(
-      `Erstellt am ${new Date().toLocaleDateString('de-DE')} | ${sorted.length} Rechnungen | Brutto Gesamt: ${totalBrutto.toFixed(2)} €`,
-      { align: 'center' }
-    );
-    doc.moveDown(1);
+    doc.fontSize(18).font('Helvetica-Bold').text('📦 Amazon Rechnungs- und Belegaufstellung', 30, 30);
+    doc.fontSize(9).font('Helvetica').text(`Erstellt am: ${new Date().toLocaleDateString('de-DE')} | Erfasste Belege: ${sorted.length}`, 30, 52);
+    doc.moveDown(1.5);
 
     const cols = [
-      { label: 'Nr.', width: 30 },
-      { label: 'Datum', width: 75 },
-      { label: 'Bestellnummer', width: 170 },
-      { label: 'Netto (€)', width: 75 },
-      { label: 'USt (€)', width: 70 },
-      { label: 'Brutto (€)', width: 75 },
-      { label: 'USt%', width: 45 },
-      { label: 'Händler', width: 210 }
+      { label: 'Nr.', width: 25 },
+      { label: 'Datum', width: 60 },
+      { label: 'Sparte', width: 75 },
+      { label: 'Bestellnummer / Rechnungs-Nr.', width: 145 },
+      { label: 'Netto (€)', width: 65 },
+      { label: 'USt (€)', width: 60 },
+      { label: 'Brutto (€)', width: 65 },
+      { label: 'USt%', width: 40 },
+      { label: 'Händler / Sparte', width: 180 }
     ];
 
     let x = 30;
@@ -647,7 +812,6 @@ class AmazonService extends BaseService {
       }
 
       const inv = sorted[i];
-      console.log(`  📄 [${i + 1}/${sorted.length}] Analysiere: ${inv.orderId || inv.id} (${inv.date} | ${inv.brutto}€)`);
       const bg = i % 2 === 0 ? '#f8f9fa' : '#fff';
       doc.rect(x, y, cols.reduce((s, c) => s + c.width, 0), rowHeight).fill(bg);
       doc.fillColor('#000');
@@ -655,7 +819,8 @@ class AmazonService extends BaseService {
       const values = [
         (i + 1).toString(),
         inv.date || '-',
-        inv.orderId || '-',
+        inv.subService || 'Amazon.de',
+        inv.invoiceNumber || inv.orderId || '-',
         (inv.netto || 0).toFixed(2),
         (inv.ust || 0).toFixed(2),
         (inv.brutto || 0).toFixed(2),
@@ -677,25 +842,27 @@ class AmazonService extends BaseService {
     doc.rect(x, y, cols.reduce((s, c) => s + c.width, 0), rowHeight + 2).fill('#ff9900');
     doc.fillColor('#000');
     cx = x;
-    doc.text('GESAMT', cx + 3, y + 5, { width: cols[0].width + cols[1].width + cols[2].width - 6 });
-    cx += cols[0].width + cols[1].width + cols[2].width;
-    doc.text(totalNetto.toFixed(2), cx + 3, y + 5, { width: cols[3].width - 6 });
-    cx += cols[3].width;
-    doc.text(totalUst.toFixed(2), cx + 3, y + 5, { width: cols[4].width - 6 });
+    doc.text('GESAMT', cx + 3, y + 5, { width: cols[0].width + cols[1].width + cols[2].width + cols[3].width - 6 });
+    cx += cols[0].width + cols[1].width + cols[2].width + cols[3].width;
+    doc.text(totalNetto.toFixed(2), cx + 3, y + 5, { width: cols[4].width - 6 });
     cx += cols[4].width;
-    doc.text(totalBrutto.toFixed(2), cx + 3, y + 5, { width: cols[5].width - 6 });
+    doc.text(totalUst.toFixed(2), cx + 3, y + 5, { width: cols[5].width - 6 });
+    cx += cols[5].width;
+    doc.text(totalBrutto.toFixed(2), cx + 3, y + 5, { width: cols[6].width - 6 });
 
     doc.end();
     await new Promise(resolve => stream.on('finish', resolve));
 
-    // Export CSV (Optimized for German Excel / OpenCalc with comma decimals)
+    // Export CSV (Optimized for German Excel / OpenCalc with semicolon & comma decimals)
     const csvFile = path.join(this.invoicesDir, 'amazon_ledger.csv');
-    const csvHeaders = ['Nr', 'Steuerdatum', 'Rechnungsdatum', 'Bestellnummer', 'Händler', 'Netto (EUR)', 'USt (EUR)', 'Brutto (EUR)', 'Steuersatz', 'PDF-Datei'];
+    const csvHeaders = ['Nr', 'Steuerdatum', 'Rechnungsdatum', 'Sparte', 'Bestellnummer', 'Rechnungsnummer', 'Händler', 'Netto (EUR)', 'USt (EUR)', 'Brutto (EUR)', 'Steuersatz', 'PDF-Datei'];
     const csvRows = sorted.map((r, i) => [
       i + 1,
       `"${r.steuerdatum || r.date || '-'}"`,
       `"${r.rechnungsdatum || r.invoiceDate || r.steuerdatum || r.date || '-'}"`,
+      `"${r.subService || 'Amazon.de'}"`,
       `"${r.orderId || '-'}"`,
+      `"${r.invoiceNumber || '-'}"`,
       `"${(r.seller || 'Amazon EU S.a.r.l.').replace(/"/g, '""')}"`,
       (r.netto || 0).toFixed(2).replace('.', ','),
       (r.ust || 0).toFixed(2).replace('.', ','),
@@ -726,7 +893,7 @@ class AmazonService extends BaseService {
 </head>
 <body>
 <div class="card">
-  <h2>📦 Amazon Rechnungsübersicht</h2>
+  <h2>📦 Amazon Rechnungsübersicht (Retail & Digital Services)</h2>
   <p><strong>Erstellt am:</strong> ${new Date().toLocaleDateString('de-DE')} | <strong>Rechnungen:</strong> ${sorted.length}</p>
   <table>
     <thead>
@@ -734,7 +901,9 @@ class AmazonService extends BaseService {
         <th>Nr.</th>
         <th>Steuerdatum</th>
         <th>Rechnungsdatum</th>
+        <th>Sparte</th>
         <th>Bestellnummer</th>
+        <th>Rechnungsnummer</th>
         <th>Händler</th>
         <th class="text-right">Netto (€)</th>
         <th class="text-right">USt (€)</th>
@@ -750,7 +919,9 @@ class AmazonService extends BaseService {
         <td>${i + 1}</td>
         <td>${r.steuerdatum || r.date || '-'}</td>
         <td>${r.rechnungsdatum || r.invoiceDate || r.steuerdatum || r.date || '-'}</td>
+        <td>${r.subService || 'Amazon.de'}</td>
         <td>${r.orderId || '-'}</td>
+        <td>${r.invoiceNumber || '-'}</td>
         <td>${r.seller || 'Amazon EU S.a.r.l.'}</td>
         <td class="text-right">${(r.netto || 0).toFixed(2).replace('.', ',')}</td>
         <td class="text-right">${(r.ust || 0).toFixed(2).replace('.', ',')}</td>
@@ -761,7 +932,7 @@ class AmazonService extends BaseService {
 
     html += `
       <tr class="totals">
-        <td colspan="5">GESAMTSUMME</td>
+        <td colspan="7">GESAMTSUMME</td>
         <td class="text-right">${totalNetto.toFixed(2).replace('.', ',')}</td>
         <td class="text-right">${totalUst.toFixed(2).replace('.', ',')}</td>
         <td class="text-right">${totalBrutto.toFixed(2).replace('.', ',')}</td>
@@ -780,6 +951,7 @@ class AmazonService extends BaseService {
       const { exportServiceExcel } = require('../../utils/excel-exporter');
       const formattedRecords = sorted.map(it => ({
         ...it,
+        subService: it.subService || 'Amazon.de',
         steuerdatum: it.steuerdatum || it.date || '-',
         rechnungsdatum: it.rechnungsdatum || it.invoiceDate || it.steuerdatum || it.date || '-'
       }));

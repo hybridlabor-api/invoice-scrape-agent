@@ -80,6 +80,11 @@ function resolveCategory(record = {}) {
     return 'Reise';
   }
 
+  const subSrv = (record.subService || '').toLowerCase();
+  if (subSrv.includes('audible') || subSrv.includes('prime video') || subSrv.includes('luna') || subSrv.includes('kindle') || subSrv.includes('music')) {
+    return 'Verbrauchsmaterial';
+  }
+
   if (srv.includes('apple') || srv.includes('cyberport') || srv.includes('saturn') || srv.includes('mediamarkt') || (record.brutto && record.brutto >= 150)) {
     return 'Anschaffung';
   }
@@ -456,9 +461,13 @@ async function exportMasterExcel({ invoicesDir, records = [], metrics = {}, sort
     totalUst += ust;
     totalBrutto += gross;
 
+    const srvLabel = (r.subService && r.subService !== 'Amazon.de' && r.subService !== 'Amazon')
+      ? `${r.serviceDisplayName || r.service || 'Amazon'} (${r.subService})`
+      : (r.serviceDisplayName || r.service || 'Sonstige');
+
     sheet1Data.push([
       { t: 'n', v: idx + 1 },
-      strCell(r.serviceDisplayName || r.service || 'Sonstige'),
+      strCell(srvLabel),
       dateCell(r.steuerdatum || r.date || '-'),
       dateCell(r.rechnungsdatum || r.invoiceDate || r.steuerdatum || r.date || '-'),
       strCell(r.invoiceNumber || r.orderId || r.id || '-'),

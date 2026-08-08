@@ -34,6 +34,28 @@ async function init() {
   window.api.onLog((data) => {
     logToTerminal(data.message, data.type);
   });
+
+  // Check for updates and open modal if available
+  try {
+    const updateInfo = await window.api.checkUpdate();
+    if (updateInfo && updateInfo.updateAvailable) {
+      const curEl = document.getElementById('update-modal-current-version');
+      const latEl = document.getElementById('update-modal-latest-version');
+      const badgeBtn = document.getElementById('update-badge-btn');
+      const badgeText = document.getElementById('update-badge-text');
+
+      if (curEl) curEl.textContent = `v${updateInfo.currentVersion}`;
+      if (latEl) latEl.textContent = `v${updateInfo.latestVersion}`;
+      if (badgeText) badgeText.textContent = `v${updateInfo.latestVersion} verfügbar`;
+      if (badgeBtn) badgeBtn.classList.remove('hidden');
+
+      // Pop open the update window
+      showModal('new-version-modal');
+      logToTerminal(`\n> 🚀 Neue Version v${updateInfo.latestVersion} verfügbar! (Aktuell: v${updateInfo.currentVersion})`, 'info');
+    }
+  } catch (e) {
+    console.warn('Update check failed:', e);
+  }
 }
 
 // Cron UI

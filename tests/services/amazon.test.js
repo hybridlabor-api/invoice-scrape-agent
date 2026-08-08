@@ -120,4 +120,45 @@ describe('AmazonService', () => {
       assert.ok(splitInvoices[1].pdfBuffer && splitInvoices[1].pdfBuffer.length > 0);
     }
   });
+
+  test('should detect and classify sub-services (Audible, Prime Video, Luna, Kindle)', () => {
+    const amazon = new AmazonService({ baseDir: testBaseDir });
+
+    const audible = amazon.detectSubService('Audible Hörbuch Abo Monat', 'Audible GmbH', 'D01-1234567-8901234');
+    assert.equal(audible.subService, 'Audible');
+    assert.equal(audible.category, 'Verbrauchsmaterial');
+
+    const primeVideo = amazon.detectSubService('Prime Video Kauf: Dune Teil 2', 'Amazon Digital Germany GmbH', '304-1234567-8901234');
+    assert.equal(primeVideo.subService, 'Prime Video');
+    assert.equal(primeVideo.category, 'Verbrauchsmaterial');
+
+    const luna = amazon.detectSubService('Amazon Luna Cloud Gaming Abo', 'Amazon Media EU S.a.r.l.', 'D01-9999999-1111111');
+    assert.equal(luna.subService, 'Amazon Luna');
+
+    const kindle = amazon.detectSubService('Kindle eBook: Clean Code', 'Amazon EU S.a.r.l.', 'D01-8888888-2222222');
+    assert.equal(kindle.subService, 'Amazon Kindle');
+
+    const retail = amazon.detectSubService('Sony Kopfhörer WH-1000XM5', 'Amazon EU S.a.r.l.', '304-4587427-0229918');
+    assert.equal(retail.subService, 'Amazon.de');
+    assert.equal(retail.category, 'Anschaffung');
+  });
+
+  test('should parse digital order card data and identify sub-service', () => {
+    const amazon = new AmazonService({ baseDir: testBaseDir });
+    const parsed = amazon.parseOrderCardData({
+      orderId: 'D01-9988776-5544332',
+      dateText: '15. August 2026',
+      totalText: 'EUR 9,95',
+      titleText: 'Audible Monats-Abo (1 Guthaben)',
+      sellerText: 'Audible GmbH',
+      isDigital: true
+    });
+
+    assert.equal(parsed.orderId, 'D01-9988776-5544332');
+    assert.equal(parsed.subService, 'Audible');
+    assert.equal(parsed.category, 'Verbrauchsmaterial');
+    assert.equal(parsed.isDigital, true);
+    assert.equal(parsed.brutto, 9.95);
+  });
 });
+

@@ -48,6 +48,10 @@
     <div class="ml-16 font-semibold text-sm tracking-wide text-slate-400 flex items-center space-x-2">
       <span>BDB Invoice Suite</span>
       <span id="app-version-title" class="text-xs font-mono text-slate-500 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700/50"></span>
+      <button id="update-badge-btn" onclick="showModal('new-version-modal')" class="hidden no-drag ml-2 flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition-all animate-pulse">
+        <span>✨</span>
+        <span id="update-badge-text">Update verfügbar</span>
+      </button>
     </div>
     
     <!-- Cron Toggle -->
@@ -309,6 +313,43 @@ Ready.
           <button onclick="hideModals()" class="px-4 py-2 rounded text-sm text-slate-400 hover:text-white">Cancel</button>
           <button onclick="startCron()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded text-sm text-white font-medium">Start</button>
         </div>
+      </div>
+    </div>
+
+    <!-- New Version Available Modal (Update Popup) -->
+    <div id="new-version-modal" class="hidden glass rounded-2xl w-96 p-6 border border-emerald-500/30 shadow-2xl relative">
+      <div class="flex items-center space-x-3 mb-4">
+        <div class="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-xl">
+          🚀
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white leading-tight">Neue Version verfügbar!</h3>
+          <p class="text-xs text-emerald-400 font-medium">Ein Update steht bereit</p>
+        </div>
+      </div>
+
+      <div class="bg-slate-800/60 rounded-xl p-4 border border-slate-700/60 mb-5 space-y-2">
+        <div class="flex justify-between items-center text-xs">
+          <span class="text-slate-400">Aktuelle Version:</span>
+          <span id="update-modal-current-version" class="font-mono text-slate-300 font-semibold">v1.6.1</span>
+        </div>
+        <div class="flex justify-between items-center text-xs">
+          <span class="text-slate-400">Neueste Version:</span>
+          <span id="update-modal-latest-version" class="font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">v1.7.0</span>
+        </div>
+        <div class="pt-2 border-t border-slate-700/40 text-[11px] text-slate-400">
+          Enthält neue Scraper-Funktionen, Bugfixes und verbesserte PDF-Verarbeitung.
+        </div>
+      </div>
+
+      <div class="flex justify-end space-x-3">
+        <button onclick="hideModals()" class="px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors">
+          Später erinnern
+        </button>
+        <button onclick="executeAppUpdate()" class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-lg text-xs text-white font-bold shadow-lg shadow-emerald-900/30 transition-all flex items-center space-x-1.5">
+          <span>🔄</span>
+          <span>Jetzt aktualisieren</span>
+        </button>
       </div>
     </div>
 

@@ -33,6 +33,8 @@ describe('Electron GUI & Real-time Debugging Pipeline', () => {
     assert.ok(html.includes('id="year-modal"'), 'Must contain year-modal');
     assert.ok(html.includes('id="range-modal"'), 'Must contain range-modal');
     assert.ok(html.includes('id="imap-modal"'), 'Must contain imap credentials modal');
+    assert.ok(html.includes('id="new-version-modal"'), 'Must contain new-version-modal');
+    assert.ok(html.includes('id="update-badge-btn"'), 'Must contain update-badge-btn');
   });
 
   test('Preload IPC API Contract & Bridge Definition', () => {
@@ -53,6 +55,7 @@ describe('Electron GUI & Real-time Debugging Pipeline', () => {
       'getCronStatus',
       'onCronStatusChanged',
       'getVersion',
+      'checkUpdate',
       'updateApp'
     ];
 

@@ -319,6 +319,11 @@ ipcMain.handle('get-app-version', () => {
   return pkg.version;
 });
 
+const { checkUpdateAvailable } = require('../utils/update-checker');
+ipcMain.handle('check-update', async () => {
+  return await checkUpdateAvailable();
+});
+
 ipcMain.handle('update-app', async () => {
   const { exec } = require('child_process');
   return new Promise((resolve) => {

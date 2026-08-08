@@ -7,6 +7,7 @@ const fs = require('fs');
 const ServiceRegistry = require('./services/registry');
 const MasterAnalyzer = require('./services/unified/master-analyzer');
 const { getInvoicesDir, getUserDataDir } = require('./utils/paths');
+const { printCliUpdateBanner } = require('./utils/update-checker');
 const pkg = require('./package.json');
 
 // Check CLI version flag
@@ -14,6 +15,9 @@ if (process.argv.includes('--version') || process.argv.includes('-v') || process
   console.log(`v${pkg.version}`);
   process.exit(0);
 }
+
+// Check for updates non-blockingly in CLI
+printCliUpdateBanner();
 
 // Initialize and discover services
 ServiceRegistry.autoDiscover(path.join(__dirname, 'services'));
