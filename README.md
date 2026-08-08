@@ -27,39 +27,38 @@
 The suite implements a complete, enterprise-grade invoice acquisition and financial processing engine:
 
 ```mermaid
-flowchart TD
-    subgraph UI ["🖥️ User Interfaces"]
-        GUI["Electron GUI (Tailwind / Real-Time Terminal)"]
-        CLI["Interactive CLI (Multi-Service Inquirer)"]
-        CRON["Auto-Pilot Scheduler (Launchd / Systemd / Node Cron)"]
+flowchart LR
+    subgraph UI ["🖥️ Interfaces"]
+        direction TB
+        GUI["Electron GUI"]
+        CLI["Interactive CLI"]
+        CRON["Auto-Pilot Cron"]
     end
 
-    subgraph Scrapers ["🌐 Autonomous Service Scrapers"]
-        AMZ["📦 Amazon.de (Multi-Invoice PDF Splitter)"]
-        UBER["🚖 Uber / Uber Eats (GraphQL Interceptor)"]
-        ALI["🛍️ AliExpress (MTOP & Tax Parser)"]
-        IMAP["📧 IMAP Inboxes (Bolt, Adobe, Lime, etc.)"]
+    subgraph Scrapers ["🌐 Autonomous Scrapers"]
+        direction TB
+        AMZ["📦 Amazon.de"]
+        UBER["🚖 Uber / Eats"]
+        ALI["🛍️ AliExpress"]
+        IMAP["📧 IMAP Inboxes"]
     end
 
     subgraph CoreEngine ["⚙️ Core Intelligence Pipeline"]
-        REGISTRY["Service Registry & Auto-Discovery"]
-        DATE_PARSER["Date Bounds & Multi-Year Engine"]
-        TAX_CALC["Tax Breakdown (19% / 7% / 0% VAT)"]
-        CATEGORIZER["Expense Categorization Engine"]
-        SPLITTER["PDF Multi-Page Invoice Splitter"]
-        CANCEL_SIG["Cancellation Signal Controller (Start/Stop)"]
+        direction TB
+        SPLITTER["PDF Multi-Invoice Splitter"]
+        TAX["19% & 7% Tax Normalizer"]
+        CAT["Expense Categorization"]
+        CANCEL["Start/Stop Abort Signal"]
     end
 
-    subgraph Exports ["📊 Output & Storage (invoices/)"]
-        EXCEL["Master & Service Excel (.xlsx / .xls)"]
-        PDF["Consolidated Accounting PDF (Gesamtauflistung.pdf)"]
-        CSV["German CSV (Semicolon & Comma)"]
-        JSON["JSON Ledgers (.json)"]
+    subgraph Exports ["📊 Output & Ledgers"]
+        direction TB
+        EXCEL["Master Excel (.xlsx / .xls)"]
+        PDF["Consolidated PDF"]
+        CSV["CSV & JSON Ledgers"]
     end
 
-    UI --> Scrapers
-    Scrapers --> CoreEngine
-    CoreEngine --> Exports
+    UI --> Scrapers --> CoreEngine --> Exports
 ```
 
 ---
