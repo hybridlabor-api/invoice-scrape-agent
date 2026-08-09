@@ -4,6 +4,14 @@ All notable changes to **BDB Invoice & Receipt Suite** are documented in this fi
 
 ---
 
+## [1.6.2] - 2026-08-10
+
+### 🐛 Fixed
+- **Uber Foreign Currency Parsing**: Fixed a bug where non-EUR currencies (USD, GBP, CHF, PLN, CZK) were skipped due to a hardcoded `€` symbol constraint in regex. The analyzer is now currency-agnostic and detects the correct currency dynamically.
+- **Uber Priority Rides Import**: Expanded the download button locators to cover `Beleg herunterladen` and `Download Receipt`, which are sometimes used for Priority bookings. The invoice number regex now correctly extracts `Belegnummer` or `Receipt Number`.
+
+---
+
 ## [1.6.1] - 2026-08-08
 
 ### 🚀 Added & Enhanced
