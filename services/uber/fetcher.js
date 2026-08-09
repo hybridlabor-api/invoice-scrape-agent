@@ -205,7 +205,7 @@ async function downloadMode(page, activities, startDate, endDate) {
         await page.waitForTimeout(3000);
 
         try {
-            const btnLocator = page.locator('text=/Rechnung herunterladen|Download Invoice/i').first();
+            const btnLocator = page.locator('text=/Rechnung herunterladen|Download Invoice|Beleg herunterladen|Download Receipt/i').first();
             const btnCount = await btnLocator.count();
             if (btnCount === 0) {
                 console.log(`  → Keine Rechnung verfügbar (storniert/kostenlos?)`);
@@ -220,7 +220,9 @@ async function downloadMode(page, activities, startDate, endDate) {
 
                 let invoiceNum = 'UNKNOWN';
                 const invMatch = text.match(/Rechnungsnummer[:\s]+([A-Z0-9]+-[A-Z0-9-]+)/i) ||
-                                 text.match(/Invoice\s*(?:Number|ID)[:\s]+([A-Z0-9-]+)/i);
+                                 text.match(/Invoice\s*(?:Number|ID)[:\s]+([A-Z0-9-]+)/i) ||
+                                 text.match(/Belegnummer[:\s]+([A-Z0-9]+-[A-Z0-9-]+)/i) ||
+                                 text.match(/Receipt\s*(?:Number|ID)[:\s]+([A-Z0-9-]+)/i);
                 if (invMatch) invoiceNum = invMatch[1].trim();
 
                 let exactDate = parseSubtitleDate(dateStr);

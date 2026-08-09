@@ -14,6 +14,22 @@ function extractField(text, pattern) {
     return match ? match[1].trim() : '';
 }
 
+function parseCurrencyStr(rawAmount) {
+    if (!rawAmount) return 0;
+    const str = String(rawAmount).replace(/[^0-9.,-]/g, '').trim();
+    if (!str) return 0;
+    if (str.includes(',') && str.includes('.')) {
+      if (str.lastIndexOf(',') > str.lastIndexOf('.')) {
+        return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+      } else {
+        return parseFloat(str.replace(/,/g, '')) || 0;
+      }
+    } else if (str.includes(',')) {
+      return parseFloat(str.replace(',', '.')) || 0;
+    }
+    return parseFloat(str) || 0;
+}
+
 function getPdfFiles(dir) {
     let results = [];
     const list = fs.readdirSync(dir);
@@ -39,16 +55,29 @@ async function parseInvoice(filePath, relativePath) {
     const steuerdatum = extractField(text, /Steuerdatum[:\s]+(\d{1,2}\.\d{1,2}\.\d{4})/i) || rechnungsdatum;
 
     // Nettobetrag
-    const nettoMatch = text.match(/Gesamtnettobetrag\s+([\d.,]+)\s*€/i);
-    const netto = nettoMatch ? nettoMatch[1].replace('.', '').replace(',', '.') : '0';
+    const nettoMatch = text.match(/Gesamtnettobetrag[^\d]*([\d.,]+)/i) || text.match(/Total Net[^\d]*([\d.,]+)/i);
+    const netto = nettoMatch ? parseCurrencyStr(nettoMatch[1]) : 0;
 
     // USt
-    const ustMatch = text.match(/Gesamtbetrag USt[^€]*?([\d.,]+)\s*€/i);
-    const ust = ustMatch ? ustMatch[1].replace('.', '').replace(',', '.') : '0';
+    const ustMatch = text.match(/Gesamtbetrag USt[^\d]*([\d.,]+)/i) || text.match(/Total VAT[^\d]*([\d.,]+)/i) || text.match(/Tax[^\d]*([\d.,]+)/i);
+    const ust = ustMatch ? parseCurrencyStr(ustMatch[1]) : 0;
 
     // Bruttobetrag
-    const bruttoMatch = text.match(/Gesamtbetrag\s+([\d.,]+)\s*€/i);
-    const brutto = bruttoMatch ? bruttoMatch[1].replace('.', '').replace(',', '.') : '0';
+    const bruttoMatch = text.match(/Gesamtbetrag[^\d]*([\d.,]+)/i) || text.match(/Total Amount[^\d]*([\d.,]+)/i) || text.match(/Total[^\d]*([\d.,]+)/i);
+    const brutto = bruttoMatch ? parseCurrencyStr(bruttoMatch[1]) : 0;
+
+    // Currency Detection
+    let currency = 'EUR';
+    const currencyMatch = text.match(/(?:Gesamtbetrag|Total|Total Amount)[^\d]*[\d.,]+\s*(€|\$|£|USD|GBP|CHF|PLN|CZK)/i) || 
+                          text.match(/(?:Gesamtbetrag|Total|Total Amount)\s*(€|\$|£|USD|GBP|CHF|PLN|CZK)\s*[\d.,]+/i);
+    if (currencyMatch) {
+        const sym = (currencyMatch[1] || '').toUpperCase();
+        if (sym === '$' || sym === 'USD') currency = 'USD';
+        else if (sym === '£' || sym === 'GBP') currency = 'GBP';
+        else if (sym === 'CHF') currency = 'CHF';
+        else if (sym === 'PLN') currency = 'PLN';
+        else if (sym === 'CZK') currency = 'CZK';
+    }
 
     // USt-Satz
     const ustSatzMatch = text.match(/(\d+)%/);
@@ -67,12 +96,13 @@ async function parseInvoice(filePath, relativePath) {
         rechnungsnummer,
         rechnungsdatum,
         steuerdatum,
-        netto: parseFloat(netto) || 0,
-        ust: parseFloat(ust) || 0,
-        brutto: parseFloat(brutto) || 0,
+        netto: netto,
+        ust: ust,
+        brutto: brutto,
         ustSatz,
         distanz,
-        anbieter
+        anbieter,
+        currency
     };
 }
 
@@ -230,7 +260,7 @@ async function run() {
         brutto: inv.brutto,
         taxRate: inv.ustSatz,
         seller: inv.anbieter,
-        currency: 'EUR',
+        currency: inv.currency || 'EUR',
         pdfPath: path.join('invoices', 'uber', inv.datei)
     }));
     fs.writeFileSync(LEDGER_FILE, JSON.stringify(ledger, null, 2), 'utf8');
